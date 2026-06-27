@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Role {
+  id          Int              @id @default(autoincrement())
+  nama        String           @unique
+  deskripsi   String?
+  users       User[]
+  permissions RolePermission[]
+  createdById Int?
+  createdBy   User?            @relation("RoleCreatedBy", fields: [createdById], references: [id])
+  updatedById Int?
+  updatedBy   User?            @relation("RoleUpdatedBy", fields: [updatedById], references: [id])
+  deletedById Int?
+  deletedBy   User?            @relation("RoleDeletedBy", fields: [deletedById], references: [id])
+  deletedAt   DateTime?
+}
+
+model RolePermission {
+  id     Int     @id @default(autoincrement())
+  roleId Int
+  role   Role    @relation(fields: [roleId], references: [id])
+  modul  String
+  view   Boolean @default(true)
+  create Boolean @default(false)
+  edit   Boolean @default(false)
+  delete Boolean @default(false)
+
+  @@unique([roleId, modul])
+}
+
+model User {
+  id         Int           @id @default(autoincrement())
+  username   String        @unique
+  nama       String
+  password   String
+  roleId     Int
+  role       Role          @relation(fields: [roleId], references: [id])
+  status     String        @default("aktif")
+  createdAt  DateTime      @default(now())
+  updatedById Int?
+  updatedBy  User?         @relation("UserUpdatedBy", fields: [updatedById], references: [id])
+  deletedById Int?
+  deletedBy  User?         @relation("UserDeletedBy", fields: [deletedById], references: [id])
+  deletedAt  DateTime?
+  transaksi  Transaksi[]
+
+  // Relations for audit on other tables
+  sektorCreatedBy   Sektor[]  @relation("SektorCreatedBy")
+  sektorUpdatedBy   Sektor[]  @relation("SektorUpdatedBy")
+  sektorDeletedBy   Sektor[]  @relation("SektorDeletedBy")
+  sahamCreatedBy    Saham[]   @relation("SahamCreatedBy")
+  sahamUpdatedBy    Saham[]   @relation("SahamUpdatedBy")
+  sahamDeletedBy    Saham[]   @relation("SahamDeletedBy")
+  roleCreatedBy     Role[]    @relation("RoleCreatedBy")
+  roleUpdatedBy     Role[]    @relation("RoleUpdatedBy")
+  roleDeletedBy     Role[]    @relation("RoleDeletedBy")
+  transaksiCreatedBy Transaksi[] @relation("TransaksiCreatedBy")
+  transaksiUpdatedBy Transaksi[] @relation("TransaksiUpdatedBy")
+  transaksiDeletedBy Transaksi[] @relation("TransaksiDeletedBy")
+  userUpdatedBy     User[]    @relation("UserUpdatedBy")
+  userDeletedBy     User[]    @relation("UserDeletedBy")
+}
+
+model Sektor {
+  id          Int         @id @default(autoincrement())
+  kode        String      @unique
+  nama        String
+  deskripsi   String?
+  saham       Saham[]
+  createdById Int?
+  createdBy   User?       @relation("SektorCreatedBy", fields: [createdById], references: [id])
+  updatedById Int?
+  updatedBy   User?       @relation("SektorUpdatedBy", fields: [updatedById], references: [id])
+  deletedById Int?
+  deletedBy   User?       @relation("SektorDeletedBy", fields: [deletedById], references: [id])
+  deletedAt   DateTime?
+}
+
+model Saham {
+  id                Int         @id @default(autoincrement())
+  kode              String      @unique
+  nama              String
+  sektorId          Int
+  sektor            Sektor      @relation(fields: [sektorId], references: [id])
+  dividendPerShare  Float       @default(0)
+  transaksi         Transaksi[]
+  createdById       Int?
+  createdBy         User?       @relation("SahamCreatedBy", fields: [createdById], references: [id])
+  updatedById       Int?
+  updatedBy         User?       @relation("SahamUpdatedBy", fields: [updatedById], references: [id])
+  deletedById       Int?
+  deletedBy         User?       @relation("SahamDeletedBy", fields: [deletedById], references: [id])
+  deletedAt         DateTime?
+}
+
+model Transaksi {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  sahamId     Int
+  tipe        String
+  jumlah      Int
+  harga       Float
+  tanggal     DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id])
+  saham       Saham     @relation(fields: [sahamId], references: [id])
+  createdById Int?
+  createdBy   User?     @relation("TransaksiCreatedBy", fields: [createdById], references: [id])
+  updatedById Int?
+  updatedBy   User?     @relation("TransaksiUpdatedBy", fields: [updatedById], references: [id])
+  deletedById Int?
+  deletedBy   User?     @relation("TransaksiDeletedBy", fields: [deletedById], references: [id])
+  deletedAt   DateTime?
+}

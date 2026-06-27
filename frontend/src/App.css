@@ -1,0 +1,29 @@
+.logo {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 18px;
+  font-weight: bold;
+  gap: 8px;
+}
+
+.logo img {
+  width: 28px;
+  height: 28px;
+}
+
+.menu-trigger {
+  display: inline-flex;
+}
+
+@media (min-width: 992px) {
+  .menu-trigger {
+    display: none;
+  }
+}
+
+.deleted-row {
+  opacity: 0.5;
+}

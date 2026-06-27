@@ -1,0 +1,192 @@
+import { useEffect, useState } from 'react';
+import { Card, Table, Tag, Button, Row, Col, Statistic, message, InputNumber, Spin, Modal, Form, Select, DatePicker, Space, Popconfirm, Tooltip } from 'antd';
+import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons';
+import type { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
+import api from '../../services/api';
+import { fetchSemuaHarga } from '../../services/priceService';
+import { useAuthStore } from '../../stores/authStore';
+
+const rp = (v: number) => Intl.NumberFormat('id-ID').format(v);
+
+interface AuditUser { id: number; nama: string }
+interface PortfolioItem {
+  key: number; sahamId?: number; kode: string; nama: string;
+  total_lembar: number; harga_rata: number; total_modal: number;
+  dividend_per_share?: number; market_price?: number;
+}
+interface TransaksiItem {
+  key: number; id: number; userId: number; sahamId: number;
+  tanggal: string; kode: string; tipe: 'beli' | 'jual'; jumlah: number; harga: number; total: number;
+  createdBy?: AuditUser; updatedBy?: AuditUser;
+}
+
+export default function Transaksi() {
+  const authUser = useAuthStore((s) => s.user);
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [transaksi, setTransaksi] = useState<TransaksiItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<TransaksiItem | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [form] = Form.useForm();
+  const [sahams, setSahams] = useState<{ id: number; kode: string; nama: string }[]>([]);
+
+  const fetchAll = () => {
+    setLoading(true);
+    Promise.all([
+      api.get('/transaksi'),
+      api.get('/saham'),
+    ]).then(([resTrans, resSaham]) => {
+      const sahamList = resSaham.data;
+      const sahamMap = new Map(sahamList.map((s: any) => [s.kode, s]));
+      setSahams(sahamList);
+
+      const rawTrans = Array.isArray(resTrans.data) ? resTrans.data : resTrans.data.value || [];
+      const t = rawTrans;
+      setTransaksi(t.map((tr: any) => ({
+        key: tr.id, id: tr.id, userId: tr.userId, sahamId: tr.sahamId,
+        tanggal: new Date(tr.tanggal).toISOString().split('T')[0],
+        kode: tr.saham?.kode || '-', tipe: tr.tipe, jumlah: tr.jumlah, harga: tr.harga,
+        total: tr.jumlah * tr.harga,
+        createdBy: tr.createdBy, updatedBy: tr.updatedBy,
+      })));
+
+      const portfolioMap = new Map<string, { sahamId: number; nama: string; lembar: number; modal: number }>();
+      for (const tr of t) {
+        const kode = tr.saham?.kode;
+        if (!kode) continue;
+        const curr = portfolioMap.get(kode) || { sahamId: tr.sahamId, nama: tr.saham.nama, lembar: 0, modal: 0 };
+        if (tr.tipe === 'beli') { curr.lembar += tr.jumlah; curr.modal += tr.jumlah * tr.harga; }
+        else { curr.lembar -= tr.jumlah; curr.modal -= tr.jumlah * tr.harga; }
+        portfolioMap.set(kode, curr);
+      }
+
+      const savedPrices = JSON.parse(localStorage.getItem('market_prices') || '{}') as Record<string, number>;
+      const p: PortfolioItem[] = [];
+      let idx = 1;
+      for (const [kode, val] of portfolioMap) {
+        if (val.lembar <= 0) continue;
+        const saham = sahamMap.get(kode);
+        p.push({ key: idx++, sahamId: val.sahamId, kode, nama: val.nama, total_lembar: val.lembar, harga_rata: Math.round(val.modal / val.lembar), total_modal: val.modal, dividend_per_share: saham?.dividendPerShare ?? 0, market_price: savedPrices[kode] });
+      }
+      setPortfolio(p);
+    }).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchAll(); }, []);
+
+  const openAdd = () => { setEditing(null); form.resetFields(); setModalOpen(true); };
+  const openEdit = (record: TransaksiItem) => { setEditing(record); form.setFieldsValue({ sahamId: record.sahamId, tipe: record.tipe, jumlah: record.jumlah / 100, totalInvestasi: record.jumlah * record.harga, tanggal: dayjs(record.tanggal) }); setModalOpen(true); };
+
+  const handleOk = async () => {
+    const values = await form.validateFields();
+    setSubmitting(true);
+    try {
+      const jumlahLembar = values.jumlah * 100;
+      const harga = Math.round(values.totalInvestasi / jumlahLembar);
+      const payload: any = { sahamId: values.sahamId, tipe: values.tipe, jumlah: jumlahLembar, harga, tanggal: values.tanggal.toISOString() };
+      if (editing) { payload.userId = editing.userId; await api.put(`/transaksi/${editing.id}`, payload); message.success('Transaksi diupdate'); }
+      else { payload.userId = authUser?.id; await api.post('/transaksi', payload); message.success('Transaksi berhasil ditambahkan'); }
+      setModalOpen(false); fetchAll();
+    } catch { message.error(editing ? 'Gagal mengupdate transaksi' : 'Gagal menambah transaksi'); } finally { setSubmitting(false); }
+  };
+
+  const handleDelete = async (id: number) => {
+    try { await api.delete(`/transaksi/${id}`); message.success('Transaksi dihapus'); fetchAll(); }
+    catch { message.error('Gagal menghapus transaksi'); }
+  };
+
+  const updateHarga = async () => {
+    setUpdating(true);
+    try {
+      const kodes = portfolio.map((p) => p.kode);
+      const hargaMap = await fetchSemuaHarga(kodes);
+      localStorage.setItem('market_prices', JSON.stringify(hargaMap));
+      setPortfolio((prev) => prev.map((item) => ({ ...item, market_price: hargaMap[item.kode] })));
+      message.success('Market price berhasil diupdate');
+    } catch { message.error('Gagal mengambil harga pasar'); } finally { setUpdating(false); }
+  };
+
+  const [savingDividend, setSavingDividend] = useState<number | null>(null);
+
+  const updateDividend = (key: number, value: number | null) => { setPortfolio((prev) => prev.map((item) => item.key === key ? { ...item, dividend_per_share: value ?? undefined } : item)); };
+
+  const saveDividend = async (item: PortfolioItem) => {
+    if (!item.sahamId) return; setSavingDividend(item.key);
+    try { await api.patch(`/saham/${item.sahamId}/dividend`, { dividendPerShare: item.dividend_per_share || 0 }); message.success(`Dividend ${item.kode} disimpan`); }
+    catch { message.error('Gagal menyimpan dividend'); } finally { setSavingDividend(null); }
+  };
+
+  const totalModal = portfolio.reduce((s, p) => s + p.total_modal, 0);
+  const totalPasar = portfolio.reduce((s, p) => s + (p.market_price ? p.market_price * p.total_lembar : 0), 0);
+
+  const portfolioColumns: ColumnsType<PortfolioItem> = [
+    { title: 'Kode', dataIndex: 'kode', key: 'kode' },
+    { title: 'Nama', dataIndex: 'nama', key: 'nama' },
+    { title: 'Total Lembar', dataIndex: 'total_lembar', key: 'total_lembar', render: (v: number) => rp(v) },
+    { title: 'Harga Rata-rata', dataIndex: 'harga_rata', key: 'harga_rata', render: (v: number) => `Rp ${rp(v)}` },
+    { title: 'Total Modal', dataIndex: 'total_modal', key: 'total_modal', render: (v: number) => `Rp ${rp(v)}` },
+    { title: 'Dividend / Share', key: 'dividend_per_share', width: 280, render: (_: unknown, record: PortfolioItem) => (
+      <Space.Compact>
+        <InputNumber value={record.dividend_per_share} onChange={(val) => updateDividend(record.key, val)} placeholder="0" style={{ width: 140 }} min={0}
+          formatter={(value) => `Rp ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}
+          parser={(value) => value?.replace(/Rp\s?/g, '').replace(/\./g, '') as unknown as number} />
+        <Button icon={<SaveOutlined />} onClick={() => saveDividend(record)} loading={savingDividend === record.key} />
+      </Space.Compact>
+    )},
+    { title: 'Market Price', dataIndex: 'market_price', key: 'market_price', render: (v: number | undefined) => v ? `Rp ${rp(v)}` : <Tag>Belum update</Tag> },
+  ];
+
+  const transaksiColumns: ColumnsType<TransaksiItem> = [
+    { title: 'Tanggal', dataIndex: 'tanggal', key: 'tanggal' },
+    { title: 'Saham', dataIndex: 'kode', key: 'kode' },
+    { title: 'Tipe', dataIndex: 'tipe', key: 'tipe', render: (t: string) => <Tag color={t === 'beli' ? 'blue' : 'orange'}>{t.toUpperCase()}</Tag> },
+    { title: 'Jumlah', dataIndex: 'jumlah', key: 'jumlah', render: (v: number) => rp(v) },
+    { title: 'Harga', dataIndex: 'harga', key: 'harga', render: (v: number) => `Rp ${rp(v)}` },
+    { title: 'Total', dataIndex: 'total', key: 'total', render: (v: number) => `Rp ${rp(v)}` },
+    { title: 'Dibuat', key: 'created', width: 110, render: (_: unknown, r: TransaksiItem) => r.createdBy ? <Tooltip title={`ID: ${r.createdBy.id}`}><Tag>{r.createdBy.nama}</Tag></Tooltip> : '-' },
+    { title: 'Diubah', key: 'updated', width: 110, render: (_: unknown, r: TransaksiItem) => r.updatedBy ? <Tag color="blue">{r.updatedBy.nama}</Tag> : '-' },
+    { title: 'Aksi', key: 'aksi', width: 100, render: (_: unknown, r: TransaksiItem) => (
+      <Space><Button type="link" icon={<EditOutlined />} onClick={() => openEdit(r)} /><Popconfirm title="Hapus transaksi?" onConfirm={() => handleDelete(r.id)}><Button type="link" danger icon={<DeleteOutlined />} /></Popconfirm></Space>
+    )},
+  ];
+
+  return (
+    <div>
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={24} sm={8}><Card><Statistic title="Total Portfolio" value={totalPasar || totalModal} prefix="Rp" precision={0} /></Card></Col>
+        <Col xs={24} sm={8}><Card><Statistic title="Total Investasi" value={totalModal} prefix="Rp" precision={0} /></Card></Col>
+        <Col xs={24} sm={8}><Card><Statistic title="Total Saham Dimiliki" value={portfolio.length} suffix="saham" /></Card></Col>
+      </Row>
+
+      <Spin spinning={loading}>
+        <Card title="Portfolio Saat Ini" style={{ marginBottom: 16 }}
+          extra={<Button type="primary" icon={<ReloadOutlined />} onClick={updateHarga} loading={updating}>Update Market Price</Button>}
+        >
+          <Table columns={portfolioColumns} dataSource={portfolio} pagination={false} scroll={{ x: 'max-content' }} />
+        </Card>
+
+        <Card title="Riwayat Transaksi"
+          extra={<Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Tambah Transaksi</Button>}
+        >
+          <Table columns={transaksiColumns} dataSource={transaksi} pagination={false} scroll={{ x: 'max-content' }} />
+        </Card>
+      </Spin>
+
+      <Modal title={editing ? 'Edit Transaksi' : 'Tambah Transaksi'} open={modalOpen} onOk={handleOk} onCancel={() => setModalOpen(false)} confirmLoading={submitting}>
+        <Form form={form} layout="vertical">
+          <Form.Item name="sahamId" label="Saham" rules={[{ required: true }]}><Select options={sahams.map((s) => ({ value: s.id, label: `${s.kode} - ${s.nama}` }))} /></Form.Item>
+          <Form.Item name="tipe" label="Tipe" rules={[{ required: true }]}><Select options={[{ value: 'beli', label: 'Beli' }, { value: 'jual', label: 'Jual' }]} /></Form.Item>
+          <Form.Item name="jumlah" label="Jumlah Lot" rules={[{ required: true }]}><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
+          <Form.Item name="totalInvestasi" label="Total Investasi" rules={[{ required: true }]}><InputNumber min={1} style={{ width: '100%' }} prefix="Rp"
+            formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}
+            parser={(value) => value?.replace(/\./g, '') as unknown as number}
+          /></Form.Item>
+          <Form.Item name="tanggal" label="Tanggal" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} /></Form.Item>
+        </Form>
+      </Modal>
+    </div>
+  );
+}
