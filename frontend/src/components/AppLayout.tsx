@@ -74,7 +74,7 @@ export default function AppLayout() {
       >
         <div className="logo" style={{ cursor: 'pointer' }} onClick={() => setCollapsed(!collapsed)}>
           <span>📈</span>
-          <span>Portfolio</span>
+          <span>Portfolio Tracker</span>
         </div>
         <Menu
           theme="dark"
