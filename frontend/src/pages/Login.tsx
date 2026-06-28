@@ -41,7 +41,7 @@ export default function Login() {
     }}>
       <Card style={{ width: '100%', maxWidth: 400, margin: '0 16px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <Title level={3}>Portfolio Tracker</Title>
+          <Title level={3}>Analysis Portfolio</Title>
           <Typography.Text type="secondary">Silakan login untuk melanjutkan</Typography.Text>
         </div>
         <Form layout="vertical" onFinish={onFinish}>
