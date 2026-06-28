@@ -214,8 +214,8 @@ export default function Transaksi() {
               beforeUpload={(file) => {
                 const isJpgPng = file.type === 'image/jpeg' || file.type === 'image/png';
                 if (!isJpgPng) { message.error('Hanya file JPG/PNG yang diizinkan'); return Upload.LIST_IGNORE; }
-                const isLt2M = file.size / 1024 / 1024 < 2;
-                if (!isLt2M) { message.error('Ukuran file maksimal 2MB'); return Upload.LIST_IGNORE; }
+const isLt6M = file.size / 1024 / 1024 < 6;
+if (!isLt6M) { message.error('Ukuran file maksimal 6MB'); return Upload.LIST_IGNORE; }
                 return true;
               }}
               action={`${API_URL}/upload`}
