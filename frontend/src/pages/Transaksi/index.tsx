@@ -159,14 +159,14 @@ export default function Transaksi() {
     { title: 'Tanggal', dataIndex: 'tanggal', key: 'tanggal' },
     { title: 'Saham', dataIndex: 'kode', key: 'kode' },
     { title: 'Tipe', dataIndex: 'tipe', key: 'tipe', render: (t: string) => <Tag color={t === 'beli' ? 'blue' : 'orange'}>{t.toUpperCase()}</Tag> },
-    { title: 'Bukti', key: 'bukti', width: 70, render: (_: unknown, r: TransaksiItem) =>
-      r.buktiPendukung ? (
-        <Image src={`${API_URL.replace('/api', '')}/uploads/${r.buktiPendukung}`} alt="bukti" width={36} preview={{ mask: <PaperClipOutlined /> }} />
-      ) : '-'
-    },
     { title: 'Jumlah', dataIndex: 'jumlah', key: 'jumlah', render: (v: number) => rp(v) },
     { title: 'Harga', dataIndex: 'harga', key: 'harga', render: (v: number) => `Rp ${rp(v)}` },
     { title: 'Total', dataIndex: 'total', key: 'total', render: (v: number) => `Rp ${rp(v)}` },
+    { title: 'Bukti', key: 'bukti', width: 80, render: (_: unknown, r: TransaksiItem) =>
+      r.buktiPendukung ? (
+        <Image src={`${API_URL.replace('/api', '')}/uploads/${r.buktiPendukung}`} alt="bukti" width={40} preview={{ mask: <PaperClipOutlined /> }} />
+      ) : '-'
+    },
     { title: 'Dibuat', key: 'created', width: 110, render: (_: unknown, r: TransaksiItem) => r.createdBy ? <Tooltip title={`ID: ${r.createdBy.id}`}><Tag>{r.createdBy.nama}</Tag></Tooltip> : '-' },
     { title: 'Diubah', key: 'updated', width: 110, render: (_: unknown, r: TransaksiItem) => r.updatedBy ? <Tag color="blue">{r.updatedBy.nama}</Tag> : '-' },
     { title: 'Aksi', key: 'aksi', width: 100, render: (_: unknown, r: TransaksiItem) => (
