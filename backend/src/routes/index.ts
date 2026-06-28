@@ -17,6 +17,8 @@ import {
   getRoles, getRole, createRole, updateRole, deleteRole,
 } from '../controllers/roleController';
 import { getHarga, getHargaBatch } from '../controllers/hargaController';
+import { uploadFile } from '../controllers/uploadController';
+import upload from '../lib/upload';
 
 const router = Router();
 
@@ -64,5 +66,8 @@ router.delete('/role/:id', deleteRole);
 // Harga Pasar
 router.get('/harga/:kode', getHarga);
 router.post('/harga/batch', getHargaBatch);
+
+// Upload
+router.post('/upload', upload.single('file'), uploadFile);
 
 export default router;

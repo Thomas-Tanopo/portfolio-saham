@@ -97,7 +97,7 @@ model Saham {
   updatedBy         User?       @relation("SahamUpdatedBy", fields: [updatedById], references: [id])
   deletedById       Int?
   deletedBy         User?       @relation("SahamDeletedBy", fields: [deletedById], references: [id])
-  deletedAt         DateTime?
+  deletedAt       DateTime?
 }
 
 model Transaksi {
@@ -116,5 +116,6 @@ model Transaksi {
   updatedBy   User?     @relation("TransaksiUpdatedBy", fields: [updatedById], references: [id])
   deletedById Int?
   deletedBy   User?     @relation("TransaksiDeletedBy", fields: [deletedById], references: [id])
-  deletedAt   DateTime?
+  deletedAt       DateTime?
+  buktiPendukung  String?
 }

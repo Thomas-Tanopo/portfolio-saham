@@ -16,11 +16,12 @@ export async function getTransaksis(req: Request, res: Response) {
 
 export async function createTransaksi(req: Request, res: Response) {
   const authUser = (req as any).user;
-  const { userId, sahamId, tipe, jumlah, harga, tanggal } = req.body;
+  const { userId, sahamId, tipe, jumlah, harga, tanggal, buktiPendukung } = req.body;
   const data = await prisma.transaksi.create({
     data: {
       userId, sahamId, tipe, jumlah, harga,
       tanggal: tanggal ? new Date(tanggal) : undefined,
+      buktiPendukung,
       createdById: authUser.id,
     },
     include: { saham: true, user: true, ...auditInclude },
@@ -31,12 +32,13 @@ export async function createTransaksi(req: Request, res: Response) {
 export async function updateTransaksi(req: Request, res: Response) {
   const authUser = (req as any).user;
   const { id } = req.params;
-  const { userId, sahamId, tipe, jumlah, harga, tanggal } = req.body;
+  const { userId, sahamId, tipe, jumlah, harga, tanggal, buktiPendukung } = req.body;
   const data = await prisma.transaksi.update({
     where: { id: Number(id) },
     data: {
       userId, sahamId, tipe, jumlah, harga,
       tanggal: tanggal ? new Date(tanggal) : undefined,
+      buktiPendukung,
       updatedById: authUser.id,
     },
     include: { saham: true, user: true, ...auditInclude },

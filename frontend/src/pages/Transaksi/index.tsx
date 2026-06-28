@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Card, Table, Tag, Button, Row, Col, Statistic, message, InputNumber, Spin, Modal, Form, Select, DatePicker, Space, Popconfirm, Tooltip } from 'antd';
-import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons';
+import { Card, Table, Tag, Button, Row, Col, Statistic, message, InputNumber, Spin, Modal, Form, Select, DatePicker, Space, Popconfirm, Tooltip, Upload, Image } from 'antd';
+import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, SaveOutlined, UploadOutlined, PaperClipOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import type { UploadFile } from 'antd/es/upload';
 import dayjs from 'dayjs';
 import api from '../../services/api';
 import { fetchSemuaHarga } from '../../services/priceService';
 import { useAuthStore } from '../../stores/authStore';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const rp = (v: number) => Intl.NumberFormat('id-ID').format(v);
 
@@ -18,6 +21,7 @@ interface PortfolioItem {
 interface TransaksiItem {
   key: number; id: number; userId: number; sahamId: number;
   tanggal: string; kode: string; tipe: 'beli' | 'jual'; jumlah: number; harga: number; total: number;
+  buktiPendukung?: string;
   createdBy?: AuditUser; updatedBy?: AuditUser;
 }
 
@@ -32,6 +36,7 @@ export default function Transaksi() {
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
   const [sahams, setSahams] = useState<{ id: number; kode: string; nama: string }[]>([]);
+  const [fileList, setFileList] = useState<UploadFile[]>([]);
 
   const fetchAll = () => {
     setLoading(true);
@@ -50,6 +55,7 @@ export default function Transaksi() {
         tanggal: new Date(tr.tanggal).toISOString().split('T')[0],
         kode: tr.saham?.kode || '-', tipe: tr.tipe, jumlah: tr.jumlah, harga: tr.harga,
         total: tr.jumlah * tr.harga,
+        buktiPendukung: tr.buktiPendukung,
         createdBy: tr.createdBy, updatedBy: tr.updatedBy,
       })));
 
@@ -77,8 +83,17 @@ export default function Transaksi() {
 
   useEffect(() => { fetchAll(); }, []);
 
-  const openAdd = () => { setEditing(null); form.resetFields(); setModalOpen(true); };
-  const openEdit = (record: TransaksiItem) => { setEditing(record); form.setFieldsValue({ sahamId: record.sahamId, tipe: record.tipe, jumlah: record.jumlah / 100, totalInvestasi: record.jumlah * record.harga, tanggal: dayjs(record.tanggal) }); setModalOpen(true); };
+  const openAdd = () => { setEditing(null); form.resetFields(); setFileList([]); setModalOpen(true); };
+  const openEdit = (record: TransaksiItem) => {
+    setEditing(record);
+    form.setFieldsValue({ sahamId: record.sahamId, tipe: record.tipe, jumlah: record.jumlah / 100, totalInvestasi: record.jumlah * record.harga, tanggal: dayjs(record.tanggal) });
+    if (record.buktiPendukung) {
+      setFileList([{ uid: '-1', name: record.buktiPendukung, status: 'done', url: `${API_URL.replace('/api', '')}/uploads/${record.buktiPendukung}` }]);
+    } else {
+      setFileList([]);
+    }
+    setModalOpen(true);
+  };
 
   const handleOk = async () => {
     const values = await form.validateFields();
@@ -86,7 +101,8 @@ export default function Transaksi() {
     try {
       const jumlahLembar = values.jumlah * 100;
       const harga = Math.round(values.totalInvestasi / jumlahLembar);
-      const payload: any = { sahamId: values.sahamId, tipe: values.tipe, jumlah: jumlahLembar, harga, tanggal: values.tanggal.toISOString() };
+      const buktiPendukung = fileList.length > 0 && fileList[0].response?.filename ? fileList[0].response.filename : (editing?.buktiPendukung || undefined);
+      const payload: any = { sahamId: values.sahamId, tipe: values.tipe, jumlah: jumlahLembar, harga, tanggal: values.tanggal.toISOString(), buktiPendukung };
       if (editing) { payload.userId = editing.userId; await api.put(`/transaksi/${editing.id}`, payload); message.success('Transaksi diupdate'); }
       else { payload.userId = authUser?.id; await api.post('/transaksi', payload); message.success('Transaksi berhasil ditambahkan'); }
       setModalOpen(false); fetchAll();
@@ -146,6 +162,11 @@ export default function Transaksi() {
     { title: 'Jumlah', dataIndex: 'jumlah', key: 'jumlah', render: (v: number) => rp(v) },
     { title: 'Harga', dataIndex: 'harga', key: 'harga', render: (v: number) => `Rp ${rp(v)}` },
     { title: 'Total', dataIndex: 'total', key: 'total', render: (v: number) => `Rp ${rp(v)}` },
+    { title: 'Bukti', key: 'bukti', width: 80, render: (_: unknown, r: TransaksiItem) =>
+      r.buktiPendukung ? (
+        <Image src={`${API_URL.replace('/api', '')}/uploads/${r.buktiPendukung}`} alt="bukti" width={40} preview={{ mask: <PaperClipOutlined /> }} />
+      ) : '-'
+    },
     { title: 'Dibuat', key: 'created', width: 110, render: (_: unknown, r: TransaksiItem) => r.createdBy ? <Tooltip title={`ID: ${r.createdBy.id}`}><Tag>{r.createdBy.nama}</Tag></Tooltip> : '-' },
     { title: 'Diubah', key: 'updated', width: 110, render: (_: unknown, r: TransaksiItem) => r.updatedBy ? <Tag color="blue">{r.updatedBy.nama}</Tag> : '-' },
     { title: 'Aksi', key: 'aksi', width: 100, render: (_: unknown, r: TransaksiItem) => (
@@ -185,6 +206,28 @@ export default function Transaksi() {
             parser={(value) => value?.replace(/\./g, '') as unknown as number}
           /></Form.Item>
           <Form.Item name="tanggal" label="Tanggal" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} /></Form.Item>
+          <Form.Item label="Bukti Pendukung">
+            <Upload
+              listType="picture-card"
+              fileList={fileList}
+              onChange={({ fileList: fl }) => setFileList(fl)}
+              beforeUpload={(file) => {
+                const isJpgPng = file.type === 'image/jpeg' || file.type === 'image/png';
+                if (!isJpgPng) { message.error('Hanya file JPG/PNG yang diizinkan'); return Upload.LIST_IGNORE; }
+                const isLt2M = file.size / 1024 / 1024 < 2;
+                if (!isLt2M) { message.error('Ukuran file maksimal 2MB'); return Upload.LIST_IGNORE; }
+                return true;
+              }}
+              action={`${API_URL}/upload`}
+              headers={{ Authorization: `Bearer ${localStorage.getItem('token')}` }}
+              maxCount={1}
+              accept=".jpg,.jpeg,.png"
+            >
+              {fileList.length >= 1 ? null : (
+                <div><UploadOutlined /><div style={{ marginTop: 8 }}>Upload</div></div>
+              )}
+            </Upload>
+          </Form.Item>
         </Form>
       </Modal>
     </div>
