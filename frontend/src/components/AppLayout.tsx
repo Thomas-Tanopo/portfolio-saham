@@ -74,7 +74,7 @@ export default function AppLayout() {
       >
         <div className="logo" style={{ cursor: 'pointer' }} onClick={() => setCollapsed(!collapsed)}>
           <span>📈</span>
-          <span>Aplikasi Saham</span>
+          <span>Portfolio Tracker</span>
         </div>
         <Menu
           theme="dark"
@@ -102,7 +102,7 @@ export default function AppLayout() {
           <Space>
             <Button type="text" icon={<MenuOutlined />} onClick={() => setCollapsed(!collapsed)} className="menu-trigger" style={{ fontSize: 18 }} />
             <span style={{ fontSize: 18, fontWeight: 600 }}>
-              Aplikasi Saham
+              Portfolio Tracker
             </span>
           </Space>
           <Space>
