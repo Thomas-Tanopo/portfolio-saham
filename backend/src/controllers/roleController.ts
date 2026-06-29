@@ -11,7 +11,7 @@ export async function getRoles(req: Request, res: Response) {
   const showDeleted = req.query.showDeleted === 'true';
   const where: any = {};
   if (!showDeleted) where.deletedAt = null;
-  const data = await prisma.role.findMany({ where, include: { permissions: true, ...auditInclude }, orderBy: { id: 'asc' } });
+  const data = await prisma.role.findMany({ where, include: { permissions: true, ...auditInclude }, orderBy: { id: 'desc' } });
   res.json(data);
 }
 
@@ -32,7 +32,10 @@ export async function createRole(req: Request, res: Response) {
       createdById: authUser.id,
       permissions: {
         create: permissions.map((p: any) => ({
-          modul: p.modul, view: p.view, create: p.create, edit: p.edit, delete: p.delete,
+          modul: p.modul, view: p.view, edit: p.edit, delete: p.delete,
+          create: p.create_with_approval || p.create_without_approval || p.create,
+          create_with_approval: p.create_with_approval ?? false,
+          create_without_approval: p.create_without_approval ?? false,
         })),
       },
     },
@@ -56,7 +59,10 @@ export async function updateRole(req: Request, res: Response) {
       updatedById: authUser.id,
       permissions: {
         create: permissions.map((p: any) => ({
-          modul: p.modul, view: p.view, create: p.create, edit: p.edit, delete: p.delete,
+          modul: p.modul, view: p.view, edit: p.edit, delete: p.delete,
+          create: p.create_with_approval || p.create_without_approval || p.create,
+          create_with_approval: p.create_with_approval ?? false,
+          create_without_approval: p.create_without_approval ?? false,
         })),
       },
     },

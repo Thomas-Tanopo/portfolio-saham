@@ -3,6 +3,7 @@ import { Card, Table, Button, Tag, Spin, Modal, Form, Input, Select, Space, mess
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import api from '../../services/api';
+import { usePermission } from '../../hooks/usePermission';
 
 interface AuditUser { id: number; nama: string }
 interface SahamItem {
@@ -18,6 +19,7 @@ export default function Saham() {
   const [editing, setEditing] = useState<SahamItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
+  const perm = usePermission('Saham');
 
   const fetch = () => {
     setLoading(true);
@@ -63,10 +65,10 @@ export default function Saham() {
       title: 'Aksi', key: 'aksi',
       render: (_: unknown, r: SahamItem) => (
         <Space>
-          {!r.deletedAt && <><Button type="link" icon={<EditOutlined />} onClick={() => openEdit(r)} />
-          <Popconfirm title="Hapus saham?" onConfirm={() => handleDelete(r.id)}>
+          {!r.deletedAt && <>{perm.edit && <Button type="link" icon={<EditOutlined />} onClick={() => openEdit(r)} />}
+          {perm.delete && <Popconfirm title="Hapus saham?" onConfirm={() => handleDelete(r.id)}>
             <Button type="link" danger icon={<DeleteOutlined />} />
-          </Popconfirm></>}
+          </Popconfirm>}</>}
           {r.deletedAt && <Tag color="red">Deleted</Tag>}
         </Space>
       ),
@@ -75,7 +77,7 @@ export default function Saham() {
 
   return (
     <>
-      <Card title="Master Data Saham" extra={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tambah Saham</Button>}>
+      <Card title="Master Data Saham" extra={perm.create && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tambah Saham</Button>}>
         <Spin spinning={loading}><Table columns={columns} dataSource={data} pagination={false} scroll={{ x: 'max-content' }} /></Spin>
       </Card>
       <Modal title={editing ? 'Edit Saham' : 'Tambah Saham'} open={modalOpen} onOk={handleOk} onCancel={() => setModalOpen(false)} confirmLoading={submitting}>

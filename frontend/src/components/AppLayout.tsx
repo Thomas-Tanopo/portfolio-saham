@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Button, Space, Tooltip, Typography } from 'antd';
 import {
@@ -10,10 +10,12 @@ import {
   StockOutlined,
   ClusterOutlined,
   SafetyOutlined,
+  CheckCircleOutlined,
   SunOutlined,
   MoonOutlined,
   LogoutOutlined,
   MenuOutlined,
+  FundOutlined,
 } from '@ant-design/icons';
 import { useThemeStore } from '../stores/themeStore';
 import { useAuthStore } from '../stores/authStore';
@@ -22,22 +24,51 @@ import '../App.css';
 const { Sider, Content, Header } = Layout;
 const { Text } = Typography;
 
-const menuItems = [
-  { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
+const allMenuItems = [
+  { key: '/', icon: <DashboardOutlined />, label: 'Dashboard', modul: null },
   {
     key: '/master-data',
     icon: <DatabaseOutlined />,
     label: 'Master Data',
+    modul: null,
     children: [
-      { key: '/master-data/user', icon: <UserOutlined />, label: 'User' },
-      { key: '/master-data/sektor', icon: <ClusterOutlined />, label: 'Sektor' },
-      { key: '/master-data/saham', icon: <StockOutlined />, label: 'Saham' },
-      { key: '/master-data/role', icon: <SafetyOutlined />, label: 'Role' },
+      { key: '/master-data/user', icon: <UserOutlined />, label: 'User', modul: 'User' },
+      { key: '/master-data/sektor', icon: <ClusterOutlined />, label: 'Sektor', modul: 'Sektor' },
+      { key: '/master-data/saham', icon: <StockOutlined />, label: 'Saham', modul: 'Saham' },
+      { key: '/master-data/role', icon: <SafetyOutlined />, label: 'Role', modul: 'Role' },
+      { key: '/master-data/approval-matrix', icon: <CheckCircleOutlined />, label: 'Approval Matrix', modul: 'Approval' },
     ],
   },
-  { key: '/transaksi', icon: <SwapOutlined />, label: 'Transaksi' },
-  { key: '/report', icon: <BarChartOutlined />, label: 'Report' },
+  {
+    key: '/analysis',
+    icon: <FundOutlined />,
+    label: 'Transaksi',
+    modul: null,
+    children: [
+      { key: '/transaksi', icon: <SwapOutlined />, label: 'Portfolio Input', modul: 'Transaksi' },
+      { key: '/approval', icon: <CheckCircleOutlined />, label: 'Approval', modul: 'Approval' },
+    ],
+  },
+  { key: '/report', icon: <BarChartOutlined />, label: 'Report', modul: 'Report' },
 ];
+
+function hasAccess(modul: string | null, user: any): boolean {
+  if (modul === null) return true;
+  return user?.permissions?.some((p: any) => p.modul === modul && p.view) ?? false;
+}
+
+function filterMenu(items: any[], user: any): any[] {
+  const result: any[] = [];
+  for (const item of items) {
+    if (item.children) {
+      const filtered = filterMenu(item.children, user);
+      if (filtered.length > 0) result.push({ ...item, children: filtered });
+    } else if (hasAccess(item.modul, user)) {
+      result.push(item);
+    }
+  }
+  return result;
+}
 
 export default function AppLayout() {
   const navigate = useNavigate();
@@ -45,13 +76,18 @@ export default function AppLayout() {
   const { mode, toggle } = useThemeStore();
   const { user, logout } = useAuthStore();
 
+  const menuItems = useMemo(() => filterMenu(allMenuItems, user), [user]);
+
   const [openKeys, setOpenKeys] = useState<string[]>([]);
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     const path = location.pathname;
-    if (path.startsWith('/master-data')) {
-      setOpenKeys((prev) => (prev.includes('/master-data') ? prev : [...prev, '/master-data']));
+    const subs = ['/master-data', '/analysis'];
+    for (const sub of subs) {
+      if (path.startsWith(sub)) {
+        setOpenKeys((prev) => (prev.includes(sub) ? prev : [...prev, sub]));
+      }
     }
   }, [location.pathname]);
 

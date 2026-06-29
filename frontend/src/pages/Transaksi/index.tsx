@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Card, Table, Tag, Button, Row, Col, Statistic, message, InputNumber, Spin, Modal, Form, Select, DatePicker, Space, Popconfirm, Tooltip, Upload, Image } from 'antd';
-import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, SaveOutlined, UploadOutlined, PaperClipOutlined } from '@ant-design/icons';
+import { Card, Table, Tag, Button, Row, Col, Statistic, message, InputNumber, Spin, Modal, Form, Select, DatePicker, Space, Popconfirm, Tooltip, Upload, Image, Input } from 'antd';
+import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, SaveOutlined, UploadOutlined, PaperClipOutlined, UndoOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile } from 'antd/es/upload';
 import dayjs from 'dayjs';
 import api from '../../services/api';
 import { fetchSemuaHarga } from '../../services/priceService';
 import { useAuthStore } from '../../stores/authStore';
+import { usePermission } from '../../hooks/usePermission';
+import ApprovalTimeline from '../../components/ApprovalTimeline';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
@@ -21,7 +23,7 @@ interface PortfolioItem {
 interface TransaksiItem {
   key: number; id: number; userId: number; sahamId: number;
   tanggal: string; kode: string; tipe: 'beli' | 'jual'; jumlah: number; harga: number; total: number;
-  buktiPendukung?: string;
+  status: string; buktiPendukung?: string; remarks?: string; approvalCatatan?: string;
   createdBy?: AuditUser; updatedBy?: AuditUser;
 }
 
@@ -37,6 +39,22 @@ export default function Transaksi() {
   const [form] = Form.useForm();
   const [sahams, setSahams] = useState<{ id: number; kode: string; nama: string }[]>([]);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
+  const perm = usePermission('Transaksi');
+  const [selectedSahamId, setSelectedSahamId] = useState<number | undefined>();
+  const [selectedTipe, setSelectedTipe] = useState<string>('');
+  const [activityId, setActivityId] = useState<number | null>(null);
+  const [activityOpen, setActivityOpen] = useState(false);
+  const myHoldings = (() => {
+    const m = new Map<number, number>();
+    for (const tr of transaksi) {
+      if (tr.status !== 'approved' || tr.userId !== authUser?.id) continue;
+      const curr = m.get(tr.sahamId) || 0;
+      m.set(tr.sahamId, curr + (tr.tipe === 'beli' ? tr.jumlah : -tr.jumlah));
+    }
+    return m;
+  })();
+  const portfolioSahamIds = new Set([...myHoldings.entries()].filter(([_, v]) => v > 0).map(([k]) => k));
+  const availableLembar = selectedSahamId ? (myHoldings.get(selectedSahamId) || 0) : 0;
 
   const fetchAll = () => {
     setLoading(true);
@@ -50,17 +68,22 @@ export default function Transaksi() {
 
       const rawTrans = Array.isArray(resTrans.data) ? resTrans.data : resTrans.data.value || [];
       const t = rawTrans;
-      setTransaksi(t.map((tr: any) => ({
-        key: tr.id, id: tr.id, userId: tr.userId, sahamId: tr.sahamId,
-        tanggal: new Date(tr.tanggal).toISOString().split('T')[0],
-        kode: tr.saham?.kode || '-', tipe: tr.tipe, jumlah: tr.jumlah, harga: tr.harga,
-        total: tr.jumlah * tr.harga,
-        buktiPendukung: tr.buktiPendukung,
-        createdBy: tr.createdBy, updatedBy: tr.updatedBy,
-      })));
+      setTransaksi(t.map((tr: any) => {
+        const approvalList = tr.approval || [];
+        const lastApproval = approvalList.filter((a: any) => a.catatan).sort((a: any, b: any) => new Date(b.processedAt || b.createdAt).getTime() - new Date(a.processedAt || a.createdAt).getTime())[0];
+        return {
+          key: tr.id, id: tr.id, userId: tr.userId, sahamId: tr.sahamId,
+          tanggal: new Date(tr.tanggal).toISOString().split('T')[0],
+          kode: tr.saham?.kode || '-', tipe: tr.tipe, jumlah: tr.jumlah, harga: tr.harga,
+          total: tr.jumlah * tr.harga,
+          status: tr.status, buktiPendukung: tr.buktiPendukung, remarks: tr.remarks, approvalCatatan: lastApproval?.catatan,
+          createdBy: tr.createdBy, updatedBy: tr.updatedBy,
+        };
+      }));
 
+      const approved = t.filter((tr: any) => tr.status === 'approved');
       const portfolioMap = new Map<string, { sahamId: number; nama: string; lembar: number; modal: number }>();
-      for (const tr of t) {
+      for (const tr of approved) {
         const kode = tr.saham?.kode;
         if (!kode) continue;
         const curr = portfolioMap.get(kode) || { sahamId: tr.sahamId, nama: tr.saham.nama, lembar: 0, modal: 0 };
@@ -83,9 +106,32 @@ export default function Transaksi() {
 
   useEffect(() => { fetchAll(); }, []);
 
-  const openAdd = () => { setEditing(null); form.resetFields(); setFileList([]); setModalOpen(true); };
+  const openAdd = async () => {
+    if (perm.create_with_approval) {
+      try {
+        const res = await api.get('/approval-matrix');
+        const matrixList = res.data || [];
+        const userLevel0 = matrixList.some((m: any) => m.status === 'aktif' && m.releaseLevel === 0 && m.userId === authUser?.id);
+        if (!userLevel0) {
+          message.error('Anda belum dimaintain sebagai requester di approval matrix (level 0)');
+          return;
+        }
+        const headApproval = matrixList.some((m: any) => m.status === 'aktif' && m.releaseLevel === 1);
+        if (!headApproval) {
+          message.error('Maintain release level 1 (head approval) terlebih dahulu');
+          return;
+        }
+      } catch {
+        message.error('Gagal validasi approval matrix');
+        return;
+      }
+    }
+    setEditing(null); form.resetFields(); setFileList([]); setSelectedSahamId(undefined); setSelectedTipe(''); setModalOpen(true);
+  };
   const openEdit = (record: TransaksiItem) => {
     setEditing(record);
+    setSelectedSahamId(record.sahamId);
+    setSelectedTipe(record.tipe);
     form.setFieldsValue({ sahamId: record.sahamId, tipe: record.tipe, jumlah: record.jumlah / 100, totalInvestasi: record.jumlah * record.harga, tanggal: dayjs(record.tanggal) });
     if (record.buktiPendukung) {
       setFileList([{ uid: '-1', name: record.buktiPendukung, status: 'done', url: `${API_URL.replace('/api', '')}/uploads/${record.buktiPendukung}` }]);
@@ -95,6 +141,8 @@ export default function Transaksi() {
     setModalOpen(true);
   };
 
+  const isRevision = editing?.status === 'request_info';
+
   const handleOk = async () => {
     const values = await form.validateFields();
     setSubmitting(true);
@@ -102,11 +150,27 @@ export default function Transaksi() {
       const jumlahLembar = values.jumlah * 100;
       const harga = Math.round(values.totalInvestasi / jumlahLembar);
       const buktiPendukung = fileList.length > 0 && fileList[0].response?.filename ? fileList[0].response.filename : (editing?.buktiPendukung || undefined);
-      const payload: any = { sahamId: values.sahamId, tipe: values.tipe, jumlah: jumlahLembar, harga, tanggal: values.tanggal.toISOString(), buktiPendukung };
-      if (editing) { payload.userId = editing.userId; await api.put(`/transaksi/${editing.id}`, payload); message.success('Transaksi diupdate'); }
-      else { payload.userId = authUser?.id; await api.post('/transaksi', payload); message.success('Transaksi berhasil ditambahkan'); }
+      const payload: any = { sahamId: values.sahamId, tipe: values.tipe, jumlah: jumlahLembar, harga, tanggal: values.tanggal.toISOString(), buktiPendukung, remarks: values.remarks };
+
+      if (editing) {
+        payload.userId = editing.userId;
+        if (isRevision) {
+          await api.post(`/transaksi/${editing.id}/resubmit`, payload);
+          message.success('Transaksi diresubmit untuk approval');
+        } else {
+          await api.put(`/transaksi/${editing.id}`, payload);
+          message.success('Transaksi diupdate');
+        }
+      } else {
+        payload.userId = authUser?.id;
+        await api.post('/transaksi', payload);
+        message.success('Transaksi berhasil ditambahkan');
+      }
       setModalOpen(false); fetchAll();
-    } catch { message.error(editing ? 'Gagal mengupdate transaksi' : 'Gagal menambah transaksi'); } finally { setSubmitting(false); }
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.message || 'Gagal menyimpan transaksi';
+      message.error(msg);
+    } finally { setSubmitting(false); }
   };
 
   const handleDelete = async (id: number) => {
@@ -148,7 +212,8 @@ export default function Transaksi() {
       <Space.Compact>
         <InputNumber value={record.dividend_per_share} onChange={(val) => updateDividend(record.key, val)} placeholder="0" style={{ width: 140 }} min={0}
           formatter={(value) => `Rp ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}
-          parser={(value) => value?.replace(/Rp\s?/g, '').replace(/\./g, '') as unknown as number} />
+          parser={(value) => value?.replace(/Rp\s?/g, '').replace(/\./g, '') as unknown as number}
+        />
         <Button icon={<SaveOutlined />} onClick={() => saveDividend(record)} loading={savingDividend === record.key} />
       </Space.Compact>
     )},
@@ -162,6 +227,16 @@ export default function Transaksi() {
     { title: 'Jumlah', dataIndex: 'jumlah', key: 'jumlah', render: (v: number) => rp(v) },
     { title: 'Harga', dataIndex: 'harga', key: 'harga', render: (v: number) => `Rp ${rp(v)}` },
     { title: 'Total', dataIndex: 'total', key: 'total', render: (v: number) => `Rp ${rp(v)}` },
+    { title: 'Status', dataIndex: 'status', key: 'status', width: 120, render: (s: string, r: TransaksiItem) => {
+      const colors: Record<string, string> = { approved: 'green', pending: 'orange', rejected: 'red', request_info: 'blue' };
+      const labels: Record<string, string> = { approved: 'APPROVED', pending: 'PENDING', rejected: 'REJECTED', request_info: 'REQ INFO' };
+      const tag = <Tag color={colors[s] || 'default'}>{labels[s] || s?.toUpperCase()}</Tag>;
+      if (r.approvalCatatan) {
+        return <Tooltip title={r.approvalCatatan}>{tag}</Tooltip>;
+      }
+      return tag;
+    }},
+    { title: 'Remarks', dataIndex: 'remarks', key: 'remarks', width: 180, render: (r: string) => r || '-' },
     { title: 'Bukti', key: 'bukti', width: 80, render: (_: unknown, r: TransaksiItem) =>
       r.buktiPendukung ? (
         <Image src={`${API_URL.replace('/api', '')}/uploads/${r.buktiPendukung}`} alt="bukti" width={40} preview={{ mask: <PaperClipOutlined /> }} />
@@ -169,8 +244,18 @@ export default function Transaksi() {
     },
     { title: 'Dibuat', key: 'created', width: 110, render: (_: unknown, r: TransaksiItem) => r.createdBy ? <Tooltip title={`ID: ${r.createdBy.id}`}><Tag>{r.createdBy.nama}</Tag></Tooltip> : '-' },
     { title: 'Diubah', key: 'updated', width: 110, render: (_: unknown, r: TransaksiItem) => r.updatedBy ? <Tag color="blue">{r.updatedBy.nama}</Tag> : '-' },
-    { title: 'Aksi', key: 'aksi', width: 100, render: (_: unknown, r: TransaksiItem) => (
-      <Space><Button type="link" icon={<EditOutlined />} onClick={() => openEdit(r)} /><Popconfirm title="Hapus transaksi?" onConfirm={() => handleDelete(r.id)}><Button type="link" danger icon={<DeleteOutlined />} /></Popconfirm></Space>
+    { title: 'Aksi', key: 'aksi', width: 200, render: (_: unknown, r: TransaksiItem) => (
+      <Space>
+        <Button type="link" icon={<PaperClipOutlined />} onClick={() => { setActivityId(r.id); setActivityOpen(true); }}>Activity</Button>
+        {r.status === 'request_info' && perm.create_with_approval ? (
+          <Button type="primary" icon={<UndoOutlined />} onClick={() => openEdit(r)}>Resubmit</Button>
+        ) : perm.edit ? (
+          <Button type="link" icon={<EditOutlined />} onClick={() => openEdit(r)} disabled={r.status !== 'pending' && r.status !== 'approved'} />
+        ) : null}
+        {perm.delete && <Popconfirm title="Hapus transaksi?" onConfirm={() => handleDelete(r.id)}>
+          <Button type="link" danger icon={<DeleteOutlined />} />
+        </Popconfirm>}
+      </Space>
     )},
   ];
 
@@ -190,22 +275,54 @@ export default function Transaksi() {
         </Card>
 
         <Card title="Riwayat Transaksi"
-          extra={<Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Tambah Transaksi</Button>}
+          extra={(perm.create_with_approval || perm.create_without_approval) && <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Tambah Transaksi</Button>}
         >
           <Table columns={transaksiColumns} dataSource={transaksi} pagination={false} scroll={{ x: 'max-content' }} />
         </Card>
       </Spin>
 
-      <Modal title={editing ? 'Edit Transaksi' : 'Tambah Transaksi'} open={modalOpen} onOk={handleOk} onCancel={() => setModalOpen(false)} confirmLoading={submitting}>
+      <Modal title={isRevision ? 'Resubmit Transaksi' : editing ? 'Edit Transaksi' : 'Tambah Transaksi'} open={modalOpen} onOk={handleOk} onCancel={() => setModalOpen(false)} confirmLoading={submitting}>
         <Form form={form} layout="vertical">
-          <Form.Item name="sahamId" label="Saham" rules={[{ required: true }]}><Select options={sahams.map((s) => ({ value: s.id, label: `${s.kode} - ${s.nama}` }))} /></Form.Item>
-          <Form.Item name="tipe" label="Tipe" rules={[{ required: true }]}><Select options={[{ value: 'beli', label: 'Beli' }, { value: 'jual', label: 'Jual' }]} /></Form.Item>
-          <Form.Item name="jumlah" label="Jumlah Lot" rules={[{ required: true }]}><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
+          <Form.Item name="sahamId" label="Saham" rules={[{ required: true }]}>
+            <Select
+              showSearch
+              filterOption={(input, option) => (option?.label as string ?? '').toLowerCase().includes(input.toLowerCase())}
+              options={sahams
+                .filter((s) => selectedTipe !== 'jual' || portfolioSahamIds.has(s.id))
+                .map((s) => ({ value: s.id, label: `${s.kode} - ${s.nama}` }))}
+              onChange={(val) => setSelectedSahamId(val)}
+            />
+          </Form.Item>
+          <Form.Item name="tipe" label="Tipe" rules={[{ required: true }]}>
+            <Select options={[{ value: 'beli', label: 'Beli' }, { value: 'jual', label: 'Jual' }]} onChange={(val) => setSelectedTipe(val)} />
+          </Form.Item>
+          <Form.Item name="jumlah" label="Jumlah Lot" rules={[
+            { required: true },
+            {
+              validator: (_, value) => {
+                if (selectedTipe === 'jual' && selectedSahamId && value) {
+                  const lot = value * 100;
+                  if (lot > availableLembar) {
+                    return Promise.reject(new Error(`Saldo tidak mencukupi. Tersedia: ${availableLembar.toLocaleString('id-ID')} lembar`));
+                  }
+                }
+                return Promise.resolve();
+              },
+            },
+          ]}>
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+          {selectedTipe === 'jual' && selectedSahamId && (
+            <div style={{ marginTop: -16, marginBottom: 12, color: '#888', fontSize: 13 }}>
+              Tersedia: {availableLembar.toLocaleString('id-ID')} lembar
+            </div>
+          )}
           <Form.Item name="totalInvestasi" label="Total Investasi" rules={[{ required: true }]}><InputNumber min={1} style={{ width: '100%' }} prefix="Rp"
             formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}
             parser={(value) => value?.replace(/\./g, '') as unknown as number}
           /></Form.Item>
           <Form.Item name="tanggal" label="Tanggal" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} /></Form.Item>
+          <Form.Item name="remarks" label="Remarks"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item label="Bukti Pendukung">
             <Upload
               listType="picture-card"
@@ -230,6 +347,12 @@ if (!isLt6M) { message.error('Ukuran file maksimal 6MB'); return Upload.LIST_IGN
           </Form.Item>
         </Form>
       </Modal>
+
+      <ApprovalTimeline
+        transaksiId={activityId}
+        open={activityOpen}
+        onClose={() => setActivityOpen(false)}
+      />
     </div>
   );
 }

@@ -11,13 +11,13 @@ export async function getUsers(req: Request, res: Response) {
   const showDeleted = req.query.showDeleted === 'true';
   const where: any = {};
   if (!showDeleted) where.deletedAt = null;
-  const data = await prisma.user.findMany({ where, include: { role: true, ...auditInclude } });
+  const data = await prisma.user.findMany({ where, include: { role: { include: { permissions: true } }, ...auditInclude }, orderBy: { id: 'desc' } });
   res.json(data);
 }
 
 export async function getUser(req: Request, res: Response) {
   const { id } = req.params;
-  const data = await prisma.user.findUnique({ where: { id: Number(id) }, include: { role: true, ...auditInclude } });
+  const data = await prisma.user.findUnique({ where: { id: Number(id) }, include: { role: { include: { permissions: true } }, ...auditInclude } });
   if (!data) return res.status(404).json({ message: 'User not found' });
   res.json(data);
 }
@@ -25,9 +25,33 @@ export async function getUser(req: Request, res: Response) {
 export async function createUser(req: Request, res: Response) {
   const authUser = (req as any).user;
   const { username, nama, password, roleId, status } = req.body;
+
+  const existing = await prisma.user.findUnique({ where: { username } });
+  if (existing && !existing.deletedAt) {
+    return res.status(400).json({ message: `Username '${username}' sudah digunakan` });
+  }
+  if (existing && existing.deletedAt) {
+    const hashed = await bcrypt.hash(password, 10);
+    const data = await prisma.user.update({
+      where: { id: existing.id },
+      data: { nama, password: hashed, roleId, status: status || 'aktif', deletedAt: null, deletedById: null },
+      include: { role: true, ...auditInclude },
+    });
+    return res.status(201).json(data);
+  }
+
+  const roleExists = await prisma.role.findUnique({ where: { id: roleId } });
+  if (!roleExists) {
+    return res.status(400).json({ message: 'Role tidak ditemukan' });
+  }
+
+  if (!password) {
+    return res.status(400).json({ message: 'Password wajib diisi' });
+  }
+
   const hashed = await bcrypt.hash(password, 10);
   const data = await prisma.user.create({
-    data: { username, nama, password: hashed, roleId: roleId || 2, status: status || 'aktif' },
+    data: { username, nama, password: hashed, roleId, status: status || 'aktif' },
     include: { role: true, ...auditInclude },
   });
   res.status(201).json(data);

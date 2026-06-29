@@ -3,6 +3,7 @@ import { Card, Table, Button, Tag, Spin, Modal, Form, Input, Select, Space, mess
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import api from '../../services/api';
+import { usePermission } from '../../hooks/usePermission';
 
 interface AuditUser { id: number; nama: string }
 interface RoleItem { id: number; nama: string; deskripsi?: string }
@@ -19,6 +20,7 @@ export default function User() {
   const [editing, setEditing] = useState<UserItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
+  const perm = usePermission('User');
 
   const fetch = () => {
     setLoading(true);
@@ -44,7 +46,10 @@ export default function User() {
       if (editing) { await api.put(`/users/${editing.id}`, values); message.success('User diupdate'); }
       else { await api.post('/users', values); message.success('User dibuat'); }
       setModalOpen(false); fetch();
-    } catch { message.error('Gagal menyimpan user'); } finally { setSubmitting(false); }
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Gagal menyimpan user';
+      message.error(msg);
+    } finally { setSubmitting(false); }
   };
 
   const handleDelete = async (id: number) => {
@@ -69,10 +74,10 @@ export default function User() {
       title: 'Aksi', key: 'aksi',
       render: (_: unknown, r: UserItem) => (
         <Space>
-          {!r.deletedAt && <><Button type="link" icon={<EditOutlined />} onClick={() => openEdit(r)} />
-          <Popconfirm title="Hapus user?" onConfirm={() => handleDelete(r.id)}>
+          {!r.deletedAt && <>{perm.edit && <Button type="link" icon={<EditOutlined />} onClick={() => openEdit(r)} />}
+          {perm.delete && <Popconfirm title="Hapus user?" onConfirm={() => handleDelete(r.id)}>
             <Button type="link" danger icon={<DeleteOutlined />} />
-          </Popconfirm></>}
+          </Popconfirm>}</>}
           {r.deletedAt && <Tag color="red">Deleted</Tag>}
         </Space>
       ),
@@ -81,7 +86,7 @@ export default function User() {
 
   return (
     <>
-      <Card title="Master Data User" extra={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tambah User</Button>}>
+      <Card title="Master Data User" extra={perm.create && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tambah User</Button>}>
         <Spin spinning={loading}><Table columns={columns} dataSource={data} pagination={false} scroll={{ x: 'max-content' }} /></Spin>
       </Card>
       <Modal title={editing ? 'Edit User' : 'Tambah User'} open={modalOpen} onOk={handleOk} onCancel={() => setModalOpen(false)} confirmLoading={submitting}>

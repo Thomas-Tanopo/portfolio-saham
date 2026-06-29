@@ -11,7 +11,7 @@ export async function getSektors(req: Request, res: Response) {
   const showDeleted = req.query.showDeleted === 'true';
   const where: any = {};
   if (!showDeleted) where.deletedAt = null;
-  const data = await prisma.sektor.findMany({ where, include: { saham: true, ...auditInclude }, orderBy: { id: 'asc' } });
+  const data = await prisma.sektor.findMany({ where, include: { saham: true, ...auditInclude }, orderBy: { id: 'desc' } });
   res.json(data);
 }
 

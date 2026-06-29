@@ -3,6 +3,7 @@ import { Card, Table, Button, Spin, Modal, Form, Input, Space, message, Popconfi
 import { PlusOutlined, EditOutlined, DeleteOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import api from '../../services/api';
+import { usePermission } from '../../hooks/usePermission';
 
 interface AuditUser { id: number; nama: string }
 interface SektorItem {
@@ -17,6 +18,7 @@ export default function Sektor() {
   const [editing, setEditing] = useState<SektorItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
+  const perm = usePermission('Sektor');
 
   const fetch = () => {
     setLoading(true);
@@ -61,10 +63,10 @@ export default function Sektor() {
       title: 'Aksi', key: 'aksi',
       render: (_: unknown, r: SektorItem) => (
         <Space>
-          {!r.deletedAt && <><Button type="link" icon={<EditOutlined />} onClick={() => openEdit(r)} />
-          <Popconfirm title="Hapus sektor?" onConfirm={() => handleDelete(r.id)}>
+          {!r.deletedAt && <>{perm.edit && <Button type="link" icon={<EditOutlined />} onClick={() => openEdit(r)} />}
+          {perm.delete && <Popconfirm title="Hapus sektor?" onConfirm={() => handleDelete(r.id)}>
             <Button type="link" danger icon={<DeleteOutlined />} />
-          </Popconfirm></>}
+          </Popconfirm>}</>}
           {r.deletedAt && <Tag color="red">Deleted</Tag>}
         </Space>
       ),
@@ -73,7 +75,7 @@ export default function Sektor() {
 
   return (
     <>
-      <Card title="Master Data Sektor" extra={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tambah Sektor</Button>}>
+      <Card title="Master Data Sektor" extra={perm.create && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tambah Sektor</Button>}>
         <Spin spinning={loading}><Table columns={columns} dataSource={data} pagination={false} scroll={{ x: 'max-content' }} /></Spin>
       </Card>
       <Modal title={editing ? 'Edit Sektor' : 'Tambah Sektor'} open={modalOpen} onOk={handleOk} onCancel={() => setModalOpen(false)} confirmLoading={submitting}>

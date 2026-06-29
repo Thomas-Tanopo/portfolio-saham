@@ -11,55 +11,81 @@ async function main() {
     create: { nama: 'admin', deskripsi: 'Administrator with full access' },
   });
 
-  const traderRole = await prisma.role.upsert({
-    where: { nama: 'trader' },
+  const requesterRole = await prisma.role.upsert({
+    where: { nama: 'requester' },
     update: {},
-    create: { nama: 'trader', deskripsi: 'Trader with limited access' },
+    create: { nama: 'requester', deskripsi: 'Requester - can create and manage transactions' },
   });
 
-  // Seed Role Permissions (admin: full CRUD all modules)
-  const modules = ['User', 'Sektor', 'Saham', 'Transaksi', 'Report'];
-  for (const modul of modules) {
+  const approvalRole = await prisma.role.upsert({
+    where: { nama: 'approval' },
+    update: {},
+    create: { nama: 'approval', deskripsi: 'Approval - can approve/reject transactions' },
+  });
+
+  // Seed Role Permissions
+  const allModules = ['User', 'Sektor', 'Saham', 'Transaksi', 'Report', 'Approval', 'Role'];
+
+  // admin: full access all modules
+  for (const modul of allModules) {
+    const perms = { view: true, create: true, edit: true, delete: true, create_with_approval: true, create_without_approval: true };
     await prisma.rolePermission.upsert({
       where: { roleId_modul: { roleId: adminRole.id, modul } },
-      update: {},
-      create: {
-        roleId: adminRole.id,
-        modul,
-        view: true,
-        create: modul !== 'Report',
-        edit: modul !== 'Report',
-        delete: modul !== 'Report',
-      },
+      update: perms,
+      create: { roleId: adminRole.id, modul, ...perms },
     });
   }
 
-  // trader: view only for User/Sektor/Saham/Report, can create/edit Transaksi
-  for (const modul of modules) {
-    const canModify = modul === 'Transaksi';
+  // requester: view Saham/Sektor/Report, create_with_approval Transaksi
+  for (const modul of allModules) {
+    const perms: any = { roleId: requesterRole.id, modul, view: false, create: false, edit: false, delete: false, create_with_approval: false, create_without_approval: false };
+    if (modul === 'Saham' || modul === 'Sektor' || modul === 'Report') {
+      perms.view = true;
+    }
+    if (modul === 'Transaksi') {
+      perms.view = true; perms.create = true; perms.edit = true; perms.create_with_approval = true;
+    }
     await prisma.rolePermission.upsert({
-      where: { roleId_modul: { roleId: traderRole.id, modul } },
-      update: {},
-      create: {
-        roleId: traderRole.id,
-        modul,
-        view: true,
-        create: canModify,
-        edit: canModify,
-        delete: false,
-      },
+      where: { roleId_modul: { roleId: requesterRole.id, modul } },
+      update: perms,
+      create: perms,
     });
   }
 
-  // Seed Users with hashed passwords
+  // approval: view Transaksi/Saham/Sektor/Report/Approval
+  for (const modul of allModules) {
+    const perms: any = { roleId: approvalRole.id, modul, view: false, create: false, edit: false, delete: false, create_with_approval: false, create_without_approval: false };
+    if (['Saham', 'Sektor', 'Report', 'Approval'].includes(modul)) {
+      perms.view = true;
+    }
+    if (modul === 'Transaksi') {
+      perms.view = true; perms.edit = true;
+    }
+    await prisma.rolePermission.upsert({
+      where: { roleId_modul: { roleId: approvalRole.id, modul } },
+      update: perms,
+      create: perms,
+    });
+  }
+
+  // Seed Users with hashed passwords (all passwords: 123456)
   const users = [
-    { username: 'admin', nama: 'Administrator', password: hash('admin123'), roleId: adminRole.id, status: 'aktif' },
-    { username: 'trader1', nama: 'Trader Satu', password: hash('trader123'), roleId: traderRole.id, status: 'aktif' },
+    { username: 'admin', nama: 'Administrator', password: hash('123456'), roleId: adminRole.id, status: 'aktif' },
+    { username: 'requester1', nama: 'Requester Satu', password: hash('123456'), roleId: requesterRole.id, status: 'aktif' },
+    { username: 'requester2', nama: 'Requester Dua', password: hash('123456'), roleId: requesterRole.id, status: 'aktif' },
+    { username: 'requester3', nama: 'Requester Tiga', password: hash('123456'), roleId: requesterRole.id, status: 'aktif' },
+    { username: 'requester4', nama: 'Requester Empat', password: hash('123456'), roleId: requesterRole.id, status: 'aktif' },
+    { username: 'requester5', nama: 'Requester Lima', password: hash('123456'), roleId: requesterRole.id, status: 'aktif' },
+    { username: 'approval1', nama: 'Approval Satu', password: hash('123456'), roleId: approvalRole.id, status: 'aktif' },
+    { username: 'approval2', nama: 'Approval Dua', password: hash('123456'), roleId: approvalRole.id, status: 'aktif' },
+    { username: 'approval3', nama: 'Approval Tiga', password: hash('123456'), roleId: approvalRole.id, status: 'aktif' },
+    { username: 'approval4', nama: 'Approval Empat', password: hash('123456'), roleId: approvalRole.id, status: 'aktif' },
+    { username: 'approval5', nama: 'Approval Lima', password: hash('123456'), roleId: approvalRole.id, status: 'aktif' },
   ];
   for (const u of users) {
     await prisma.user.upsert({
       where: { username: u.username },
-      update: { password: u.password },
+      update: { password: u.password, nama: u.nama },
       create: u,
     });
   }

@@ -31,6 +31,8 @@ model RolePermission {
   create Boolean @default(false)
   edit   Boolean @default(false)
   delete Boolean @default(false)
+  create_with_approval    Boolean @default(false)
+  create_without_approval Boolean @default(false)
 
   @@unique([roleId, modul])
 }
@@ -64,6 +66,14 @@ model User {
   transaksiCreatedBy Transaksi[] @relation("TransaksiCreatedBy")
   transaksiUpdatedBy Transaksi[] @relation("TransaksiUpdatedBy")
   transaksiDeletedBy Transaksi[] @relation("TransaksiDeletedBy")
+  approvalMatrixCreatedBy ApprovalMatrix[] @relation("ApprovalMatrixCreatedBy")
+  approvalMatrixUpdatedBy ApprovalMatrix[] @relation("ApprovalMatrixUpdatedBy")
+  approvalMatrixDeletedBy ApprovalMatrix[] @relation("ApprovalMatrixDeletedBy")
+  approvalMatrixRecords   ApprovalMatrix[] @relation("ApprovalMatrixUser")
+  approvalMatrixGroupCreatedBy ApprovalMatrixGroup[] @relation("ApprovalMatrixGroupCreatedBy")
+  approvalMatrixGroupUpdatedBy ApprovalMatrixGroup[] @relation("ApprovalMatrixGroupUpdatedBy")
+  approvalMatrixGroupDeletedBy ApprovalMatrixGroup[] @relation("ApprovalMatrixGroupDeletedBy")
+  transaksiApprovalProcessed TransaksiApproval[] @relation("TransaksiApprovalProcessedBy")
   userUpdatedBy     User[]    @relation("UserUpdatedBy")
   userDeletedBy     User[]    @relation("UserDeletedBy")
 }
@@ -108,8 +118,10 @@ model Transaksi {
   jumlah      Int
   harga       Float
   tanggal     DateTime  @default(now())
+  status      String    @default("approved")
   user        User      @relation(fields: [userId], references: [id])
   saham       Saham     @relation(fields: [sahamId], references: [id])
+  approval    TransaksiApproval[]
   createdById Int?
   createdBy   User?     @relation("TransaksiCreatedBy", fields: [createdById], references: [id])
   updatedById Int?
@@ -118,4 +130,55 @@ model Transaksi {
   deletedBy   User?     @relation("TransaksiDeletedBy", fields: [deletedById], references: [id])
   deletedAt       DateTime?
   buktiPendukung  String?
+  remarks         String?
+}
+
+model ApprovalMatrixGroup {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  nama        String
+  status      String   @default("aktif")
+  createdById Int?
+  createdBy   User?    @relation("ApprovalMatrixGroupCreatedBy", fields: [createdById], references: [id])
+  updatedById Int?
+  updatedBy   User?    @relation("ApprovalMatrixGroupUpdatedBy", fields: [updatedById], references: [id])
+  deletedById Int?
+  deletedBy   User?    @relation("ApprovalMatrixGroupDeletedBy", fields: [deletedById], references: [id])
+  deletedAt   DateTime?
+
+  items ApprovalMatrix[]
+}
+
+model ApprovalMatrix {
+  id          Int      @id @default(autoincrement())
+  groupId     Int
+  group       ApprovalMatrixGroup @relation(fields: [groupId], references: [id])
+  releaseLevel Int
+  userId      Int
+  user        User     @relation("ApprovalMatrixUser", fields: [userId], references: [id])
+  tipe        String   @default("or")
+  status      String   @default("aktif")
+  createdById Int?
+  createdBy   User?    @relation("ApprovalMatrixCreatedBy", fields: [createdById], references: [id])
+  updatedById Int?
+  updatedBy   User?    @relation("ApprovalMatrixUpdatedBy", fields: [updatedById], references: [id])
+  deletedById Int?
+  deletedBy   User?    @relation("ApprovalMatrixDeletedBy", fields: [deletedById], references: [id])
+  deletedAt   DateTime?
+
+  @@unique([groupId, releaseLevel, userId])
+}
+
+model TransaksiApproval {
+  id                 Int       @id @default(autoincrement())
+  transaksiId        Int
+  transaksi          Transaksi @relation(fields: [transaksiId], references: [id])
+  releaseLevel       Int
+  status             String    @default("pending")
+  catatan            String?
+  processedById      Int?
+  processedBy        User?     @relation("TransaksiApprovalProcessedBy", fields: [processedById], references: [id])
+  processedByUserIds Int[]     @default([])
+  processedAt        DateTime?
+  createdAt          DateTime  @default(now())
 }

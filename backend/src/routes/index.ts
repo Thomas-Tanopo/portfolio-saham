@@ -11,7 +11,7 @@ import {
   getSahams, getSaham, createSaham, updateSaham, patchDividend, deleteSaham,
 } from '../controllers/sahamController';
 import {
-  getTransaksis, createTransaksi, updateTransaksi, deleteTransaksi,
+  getTransaksis, createTransaksi, updateTransaksi, deleteTransaksi, resubmitTransaksi, getActivityLog,
 } from '../controllers/transaksiController';
 import {
   getRoles, getRole, createRole, updateRole, deleteRole,
@@ -19,6 +19,13 @@ import {
 import { getHarga, getHargaBatch } from '../controllers/hargaController';
 import { uploadFile } from '../controllers/uploadController';
 import upload from '../lib/upload';
+import {
+  getApprovalMatrix, createApprovalMatrix, updateApprovalMatrix, deleteApprovalMatrix,
+} from '../controllers/approvalMatrixController';
+import {
+  getApprovalMatrixGroups, createApprovalMatrixGroup, updateApprovalMatrixGroup, deleteApprovalMatrixGroup,
+} from '../controllers/approvalMatrixGroupController';
+import { getPendingApprovals, processApproval } from '../controllers/approvalController';
 
 const router = Router();
 
@@ -54,6 +61,8 @@ router.delete('/saham/:id', deleteSaham);
 router.get('/transaksi', getTransaksis);
 router.post('/transaksi', createTransaksi);
 router.put('/transaksi/:id', updateTransaksi);
+router.get('/transaksi/:id/activity', getActivityLog);
+router.post('/transaksi/:id/resubmit', resubmitTransaksi);
 router.delete('/transaksi/:id', deleteTransaksi);
 
 // Roles
@@ -69,5 +78,21 @@ router.post('/harga/batch', getHargaBatch);
 
 // Upload
 router.post('/upload', upload.single('file'), uploadFile);
+
+// Approval Matrix Group
+router.get('/approval-matrix-group', getApprovalMatrixGroups);
+router.post('/approval-matrix-group', createApprovalMatrixGroup);
+router.put('/approval-matrix-group/:id', updateApprovalMatrixGroup);
+router.delete('/approval-matrix-group/:id', deleteApprovalMatrixGroup);
+
+// Approval Matrix
+router.get('/approval-matrix', getApprovalMatrix);
+router.post('/approval-matrix', createApprovalMatrix);
+router.put('/approval-matrix/:id', updateApprovalMatrix);
+router.delete('/approval-matrix/:id', deleteApprovalMatrix);
+
+// Approval
+router.get('/approval/pending', getPendingApprovals);
+router.post('/approval/:transaksiId/process', processApproval);
 
 export default router;

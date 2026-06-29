@@ -11,11 +11,26 @@ import User from './pages/MasterData/User';
 import Saham from './pages/MasterData/Saham';
 import Sektor from './pages/MasterData/Sektor';
 import Role from './pages/MasterData/Role';
+import ApprovalMatrix from './pages/MasterData/ApprovalMatrix';
+import Approval from './pages/Approval';
 import Transaksi from './pages/Transaksi';
 import Report from './pages/Report';
 
+const routeModuleMap: Record<string, string | null> = {
+  '/': null,
+  '/master-data': null,
+  '/master-data/user': 'User',
+  '/master-data/saham': 'Saham',
+  '/master-data/sektor': 'Sektor',
+  '/master-data/role': 'Role',
+  '/master-data/approval-matrix': 'Approval',
+  '/approval': 'Approval',
+  '/transaksi': 'Transaksi',
+  '/report': 'Report',
+};
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { token, loading } = useAuthStore();
+  const { token, loading, user } = useAuthStore();
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
@@ -24,6 +39,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
   if (!token) return <Navigate to="/login" replace />;
+
+  const path = window.location.pathname;
+  const modul = routeModuleMap[path];
+  if (modul && !(user?.permissions?.some((p: any) => p.modul === modul && p.view) ?? false)) {
+    return <Navigate to="/" replace />;
+  }
+
   return <>{children}</>;
 }
 
@@ -57,6 +79,8 @@ function App() {
           <Route path="/master-data/saham" element={<Saham />} />
           <Route path="/master-data/sektor" element={<Sektor />} />
           <Route path="/master-data/role" element={<Role />} />
+          <Route path="/master-data/approval-matrix" element={<ApprovalMatrix />} />
+          <Route path="/approval" element={<Approval />} />
           <Route path="/transaksi" element={<Transaksi />} />
           <Route path="/report" element={<Report />} />
         </Route>
