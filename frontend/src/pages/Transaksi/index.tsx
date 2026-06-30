@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Card, Table, Tag, Button, Row, Col, Statistic, message, InputNumber, Spin, Modal, Form, Select, DatePicker, Space, Popconfirm, Tooltip, Upload, Image, Input, Checkbox } from 'antd';
 import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, SaveOutlined, UploadOutlined, PaperClipOutlined, UndoOutlined, CameraOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -127,14 +127,14 @@ export default function Transaksi() {
         return;
       }
     }
-    setEditing(null); form.resetFields(); setFileList([]); setCameraFile(null); setSelectedSahamId(undefined); setSelectedTipe(''); setModalOpen(true);
+    setEditing(null); form.resetFields(); setFileList([]); cameraFileRef.current = null; setSelectedSahamId(undefined); setSelectedTipe(''); setModalOpen(true);
   };
   const openEdit = (record: TransaksiItem) => {
     setEditing(record);
     setSelectedSahamId(record.sahamId);
     setSelectedTipe(record.tipe);
     form.setFieldsValue({ sahamId: record.sahamId, tipe: record.tipe, jumlah: record.jumlah / 100, totalInvestasi: record.jumlah * record.harga, tanggal: dayjs(record.tanggal) });
-    setCameraFile(null);
+    cameraFileRef.current = null;
     if (record.buktiPendukung) {
       setFileList([{ uid: '-1', name: record.buktiPendukung, status: 'done', url: `${API_URL.replace('/api', '')}/uploads/${record.buktiPendukung}`, response: { filename: record.buktiPendukung } }]);
     } else {
@@ -150,11 +150,12 @@ export default function Transaksi() {
     setSubmitting(true);
     try {
       let buktiPendukung = editing?.buktiPendukung;
-      if (cameraFile) {
+      if (cameraFileRef.current) {
         const fd = new FormData();
-        fd.append('file', cameraFile);
+        fd.append('file', cameraFileRef.current);
         const upRes = await api.post('/upload', fd);
         buktiPendukung = upRes.data.filename;
+        cameraFileRef.current = null;
       } else if (fileList.length > 0 && fileList[0].response?.filename) {
         buktiPendukung = fileList[0].response.filename;
       }
@@ -200,7 +201,7 @@ export default function Transaksi() {
   };
 
   const [savingDividend, setSavingDividend] = useState<number | null>(null);
-  const [cameraFile, setCameraFile] = useState<File | null>(null);
+  const cameraFileRef = useRef<File | null>(null);
 
   const updateDividend = (key: number, value: number | null) => { setPortfolio((prev) => prev.map((item) => item.key === key ? { ...item, dividend_per_share: value ?? undefined } : item)); };
 
@@ -352,7 +353,7 @@ export default function Transaksi() {
                     if (!file) return;
                     if (file.type !== 'image/jpeg' && file.type !== 'image/png') { message.error('Hanya file JPG/PNG'); return; }
                     if (file.size >= 6 * 1024 * 1024) { message.error('Maksimal 6MB'); return; }
-                    setCameraFile(file);
+                    cameraFileRef.current = file;
                     const reader = new FileReader();
                     reader.onload = (ev) => {
                       setFileList([{ uid: '-1', name: file.name, status: 'done', url: ev.target?.result as string }]);
@@ -362,7 +363,7 @@ export default function Transaksi() {
                   };
                   input.click();
                 }}>Ambil Foto</Button>
-                {cameraFile && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{cameraFile.name}</div>}
+                {cameraFileRef.current && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{cameraFileRef.current.name}</div>}
               </div>
               <Upload
                 showUploadList={false}
@@ -395,7 +396,7 @@ if (!isLt6M) { message.error('Ukuran file maksimal 6MB'); return Upload.LIST_IGN
                   size="small"
                   style={{ position: 'absolute', top: -8, right: -8 }}
                   icon={<CloseCircleOutlined />}
-                  onClick={() => { setFileList([]); setCameraFile(null); }}
+                  onClick={() => { setFileList([]); cameraFileRef.current = null; }}
                 />
               </div>
             )}
