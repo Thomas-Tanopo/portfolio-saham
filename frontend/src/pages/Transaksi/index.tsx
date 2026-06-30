@@ -135,7 +135,7 @@ export default function Transaksi() {
     setSelectedTipe(record.tipe);
     form.setFieldsValue({ sahamId: record.sahamId, tipe: record.tipe, jumlah: record.jumlah / 100, totalInvestasi: record.jumlah * record.harga, tanggal: dayjs(record.tanggal) });
     if (record.buktiPendukung) {
-      setFileList([{ uid: '-1', name: record.buktiPendukung, status: 'done', url: `${API_URL.replace('/api', '')}/uploads/${record.buktiPendukung}` }]);
+      setFileList([{ uid: '-1', name: record.buktiPendukung, status: 'done', url: `${API_URL.replace('/api', '')}/uploads/${record.buktiPendukung}`, response: { filename: record.buktiPendukung } }]);
     } else {
       setFileList([]);
     }
@@ -203,7 +203,7 @@ export default function Transaksi() {
     formData.append('file', file);
     try {
       const res = await api.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setFileList([{ uid: '-1', name: res.data.filename, status: 'done', url: `${API_URL.replace('/api', '')}/uploads/${res.data.filename}` }]);
+      setFileList([{ uid: '-1', name: res.data.filename, status: 'done', url: `${API_URL.replace('/api', '')}/uploads/${res.data.filename}`, response: { filename: res.data.filename } }]);
       message.success('Foto berhasil diupload');
     } catch { message.error('Gagal upload foto'); }
     e.target.value = '';
