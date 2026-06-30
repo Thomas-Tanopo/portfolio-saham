@@ -127,7 +127,7 @@ export default function Transaksi() {
         return;
       }
     }
-    setEditing(null); form.resetFields(); setFileList([]); setSelectedSahamId(undefined); setSelectedTipe(''); setModalOpen(true);
+    setEditing(null); form.resetFields(); setFileList([]); setUploadedFilename(undefined); setSelectedSahamId(undefined); setSelectedTipe(''); setModalOpen(true);
   };
   const openEdit = (record: TransaksiItem) => {
     setEditing(record);
@@ -136,8 +136,10 @@ export default function Transaksi() {
     form.setFieldsValue({ sahamId: record.sahamId, tipe: record.tipe, jumlah: record.jumlah / 100, totalInvestasi: record.jumlah * record.harga, tanggal: dayjs(record.tanggal) });
     if (record.buktiPendukung) {
       setFileList([{ uid: '-1', name: record.buktiPendukung, status: 'done', url: `${API_URL.replace('/api', '')}/uploads/${record.buktiPendukung}`, response: { filename: record.buktiPendukung } }]);
+      setUploadedFilename(record.buktiPendukung);
     } else {
       setFileList([]);
+      setUploadedFilename(undefined);
     }
     setModalOpen(true);
   };
@@ -150,7 +152,7 @@ export default function Transaksi() {
     try {
       const jumlahLembar = values.jumlah * 100;
       const harga = Math.round(values.totalInvestasi / jumlahLembar);
-      const buktiPendukung = fileList.length > 0 && fileList[0].response?.filename ? fileList[0].response.filename : (editing?.buktiPendukung || undefined);
+      const buktiPendukung = uploadedFilename || (fileList.length > 0 && fileList[0].response?.filename) || editing?.buktiPendukung;
       const payload: any = { sahamId: values.sahamId, tipe: values.tipe, jumlah: jumlahLembar, harga, tanggal: values.tanggal.toISOString(), buktiPendukung, remarks: values.remarks };
 
       if (editing) {
@@ -191,6 +193,7 @@ export default function Transaksi() {
   };
 
   const [savingDividend, setSavingDividend] = useState<number | null>(null);
+  const [uploadedFilename, setUploadedFilename] = useState<string | undefined>();
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const handleCameraCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -204,6 +207,7 @@ export default function Transaksi() {
     try {
       const res = await api.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       setFileList([{ uid: '-1', name: res.data.filename, status: 'done', url: `${API_URL.replace('/api', '')}/uploads/${res.data.filename}`, response: { filename: res.data.filename } }]);
+      setUploadedFilename(res.data.filename);
       message.success('Foto berhasil diupload');
     } catch { message.error('Gagal upload foto'); }
     e.target.value = '';
@@ -365,6 +369,7 @@ if (!isLt6M) { message.error('Ukuran file maksimal 6MB'); return Upload.LIST_IGN
                 onChange={({ file, fileList: fl }) => {
                   if (file.status === 'done') {
                     setFileList(fl.filter((f) => f.status === 'done'));
+                    setUploadedFilename(file.response?.filename);
                   }
                 }}
               >
@@ -380,7 +385,7 @@ if (!isLt6M) { message.error('Ukuran file maksimal 6MB'); return Upload.LIST_IGN
                   size="small"
                   style={{ position: 'absolute', top: -8, right: -8 }}
                   icon={<CloseCircleOutlined />}
-                  onClick={() => setFileList([])}
+                  onClick={() => { setFileList([]); setUploadedFilename(undefined); }}
                 />
               </div>
             )}
