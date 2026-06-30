@@ -344,7 +344,7 @@ if (!isLt6M) { message.error('Ukuran file maksimal 6MB'); return Upload.LIST_IGN
               action={`${API_URL}/upload`}
               headers={{ Authorization: `Bearer ${localStorage.getItem('token')}` }}
               maxCount={1}
-              accept=".jpg,.jpeg,.png"
+              accept="image/*"
             >
               {fileList.length >= 1 ? null : (
                 <div><UploadOutlined /><div style={{ marginTop: 8 }}>Upload</div></div>
