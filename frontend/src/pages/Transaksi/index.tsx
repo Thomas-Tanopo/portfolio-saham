@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, Table, Tag, Button, Row, Col, Statistic, message, InputNumber, Spin, Modal, Form, Select, DatePicker, Space, Popconfirm, Tooltip, Upload, Image, Input, Checkbox } from 'antd';
 import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, SaveOutlined, UploadOutlined, PaperClipOutlined, UndoOutlined, CameraOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -127,19 +127,18 @@ export default function Transaksi() {
         return;
       }
     }
-    setEditing(null); form.resetFields(); setFileList([]); setUploadedFilename(undefined); setSelectedSahamId(undefined); setSelectedTipe(''); setModalOpen(true);
+    setEditing(null); form.resetFields(); setFileList([]); setCameraFile(null); setSelectedSahamId(undefined); setSelectedTipe(''); setModalOpen(true);
   };
   const openEdit = (record: TransaksiItem) => {
     setEditing(record);
     setSelectedSahamId(record.sahamId);
     setSelectedTipe(record.tipe);
     form.setFieldsValue({ sahamId: record.sahamId, tipe: record.tipe, jumlah: record.jumlah / 100, totalInvestasi: record.jumlah * record.harga, tanggal: dayjs(record.tanggal) });
+    setCameraFile(null);
     if (record.buktiPendukung) {
       setFileList([{ uid: '-1', name: record.buktiPendukung, status: 'done', url: `${API_URL.replace('/api', '')}/uploads/${record.buktiPendukung}`, response: { filename: record.buktiPendukung } }]);
-      setUploadedFilename(record.buktiPendukung);
     } else {
       setFileList([]);
-      setUploadedFilename(undefined);
     }
     setModalOpen(true);
   };
@@ -150,10 +149,16 @@ export default function Transaksi() {
     const values = await form.validateFields();
     setSubmitting(true);
     try {
-      const jumlahLembar = values.jumlah * 100;
-      const harga = Math.round(values.totalInvestasi / jumlahLembar);
-      const buktiPendukung = uploadedFilename || (fileList.length > 0 && fileList[0].response?.filename) || editing?.buktiPendukung;
-      const payload: any = { sahamId: values.sahamId, tipe: values.tipe, jumlah: jumlahLembar, harga, tanggal: values.tanggal.toISOString(), buktiPendukung, remarks: values.remarks };
+      let buktiPendukung = editing?.buktiPendukung;
+      if (cameraFile) {
+        const fd = new FormData();
+        fd.append('file', cameraFile);
+        const upRes = await api.post('/upload', fd);
+        buktiPendukung = upRes.data.filename;
+      } else if (fileList.length > 0 && fileList[0].response?.filename) {
+        buktiPendukung = fileList[0].response.filename;
+      }
+      const payload: any = { sahamId: values.sahamId, tipe: values.tipe, jumlah: values.jumlah * 100, harga: Math.round(values.totalInvestasi / (values.jumlah * 100)), tanggal: values.tanggal.toISOString(), buktiPendukung, remarks: values.remarks };
 
       if (editing) {
         payload.userId = editing.userId;
@@ -193,25 +198,7 @@ export default function Transaksi() {
   };
 
   const [savingDividend, setSavingDividend] = useState<number | null>(null);
-  const [uploadedFilename, setUploadedFilename] = useState<string | undefined>();
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-
-  const handleCameraCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const isJpgPng = file.type === 'image/jpeg' || file.type === 'image/png';
-    if (!isJpgPng) { message.error('Hanya file JPG/PNG yang diizinkan'); return; }
-    if (file.size / 1024 / 1024 >= 6) { message.error('Ukuran file maksimal 6MB'); return; }
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const res = await api.post('/upload', formData);
-      setFileList([{ uid: '-1', name: res.data.filename, status: 'done', url: `${API_URL.replace('/api', '')}/uploads/${res.data.filename}`, response: { filename: res.data.filename } }]);
-      setUploadedFilename(res.data.filename);
-      message.success('Foto berhasil diupload');
-    } catch { message.error('Gagal upload foto'); }
-    e.target.value = '';
-  };
+  const [cameraFile, setCameraFile] = useState<File | null>(null);
 
   const updateDividend = (key: number, value: number | null) => { setPortfolio((prev) => prev.map((item) => item.key === key ? { ...item, dividend_per_share: value ?? undefined } : item)); };
 
@@ -352,7 +339,29 @@ export default function Transaksi() {
           <Form.Item name="remarks" label="Remarks"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item label="Bukti Pendukung">
             <Space>
-              <Button icon={<CameraOutlined />} onClick={() => cameraInputRef.current?.click()}>Ambil Foto</Button>
+              <div>
+                <Button icon={<CameraOutlined />} onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.accept = 'image/*';
+                  input.capture = 'environment' as any;
+                  input.onchange = async (e: any) => {
+                    const file = e.target?.files?.[0];
+                    if (!file) return;
+                    if (file.type !== 'image/jpeg' && file.type !== 'image/png') { message.error('Hanya file JPG/PNG'); return; }
+                    if (file.size >= 6 * 1024 * 1024) { message.error('Maksimal 6MB'); return; }
+                    setCameraFile(file);
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      setFileList([{ uid: '-1', name: file.name, status: 'done', url: ev.target?.result as string }]);
+                    };
+                    reader.readAsDataURL(file);
+                    message.success('Foto siap disimpan');
+                  };
+                  input.click();
+                }}>Ambil Foto</Button>
+                {cameraFile && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{cameraFile.name}</div>}
+              </div>
               <Upload
                 showUploadList={false}
                 beforeUpload={(file) => {
@@ -369,7 +378,6 @@ if (!isLt6M) { message.error('Ukuran file maksimal 6MB'); return Upload.LIST_IGN
                 onChange={({ file, fileList: fl }) => {
                   if (file.status === 'done') {
                     setFileList(fl.filter((f) => f.status === 'done'));
-                    setUploadedFilename(file.response?.filename);
                   }
                 }}
               >
@@ -385,18 +393,10 @@ if (!isLt6M) { message.error('Ukuran file maksimal 6MB'); return Upload.LIST_IGN
                   size="small"
                   style={{ position: 'absolute', top: -8, right: -8 }}
                   icon={<CloseCircleOutlined />}
-                  onClick={() => { setFileList([]); setUploadedFilename(undefined); }}
+                  onClick={() => { setFileList([]); setCameraFile(null); }}
                 />
               </div>
             )}
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              style={{ display: 'none' }}
-              onChange={handleCameraCapture}
-            />
           </Form.Item>
         </Form>
       </Modal>
