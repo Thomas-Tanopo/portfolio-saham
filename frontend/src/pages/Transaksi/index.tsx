@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Card, Table, Tag, Button, Row, Col, Statistic, message, InputNumber, Spin, Modal, Form, Select, DatePicker, Space, Popconfirm, Tooltip, Upload, Image, Input, Checkbox } from 'antd';
-import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, SaveOutlined, UploadOutlined, PaperClipOutlined, UndoOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, SaveOutlined, UploadOutlined, PaperClipOutlined, UndoOutlined, CameraOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile } from 'antd/es/upload';
 import dayjs from 'dayjs';
@@ -191,6 +191,23 @@ export default function Transaksi() {
   };
 
   const [savingDividend, setSavingDividend] = useState<number | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCameraCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const isJpgPng = file.type === 'image/jpeg' || file.type === 'image/png';
+    if (!isJpgPng) { message.error('Hanya file JPG/PNG yang diizinkan'); return; }
+    if (file.size / 1024 / 1024 >= 6) { message.error('Ukuran file maksimal 6MB'); return; }
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await api.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setFileList([{ uid: '-1', name: res.data.filename, status: 'done', url: `${API_URL.replace('/api', '')}/uploads/${res.data.filename}` }]);
+      message.success('Foto berhasil diupload');
+    } catch { message.error('Gagal upload foto'); }
+    e.target.value = '';
+  };
 
   const updateDividend = (key: number, value: number | null) => { setPortfolio((prev) => prev.map((item) => item.key === key ? { ...item, dividend_per_share: value ?? undefined } : item)); };
 
@@ -330,26 +347,51 @@ export default function Transaksi() {
           <Form.Item name="tanggal" label="Tanggal" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} /></Form.Item>
           <Form.Item name="remarks" label="Remarks"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item label="Bukti Pendukung">
-            <Upload
-              listType="picture-card"
-              fileList={fileList}
-              onChange={({ fileList: fl }) => setFileList(fl)}
-              beforeUpload={(file) => {
-                const isJpgPng = file.type === 'image/jpeg' || file.type === 'image/png';
-                if (!isJpgPng) { message.error('Hanya file JPG/PNG yang diizinkan'); return Upload.LIST_IGNORE; }
+            <Space>
+              <Button icon={<CameraOutlined />} onClick={() => cameraInputRef.current?.click()}>Ambil Foto</Button>
+              <Upload
+                showUploadList={false}
+                beforeUpload={(file) => {
+                  const isJpgPng = file.type === 'image/jpeg' || file.type === 'image/png';
+                  if (!isJpgPng) { message.error('Hanya file JPG/PNG yang diizinkan'); return Upload.LIST_IGNORE; }
 const isLt6M = file.size / 1024 / 1024 < 6;
 if (!isLt6M) { message.error('Ukuran file maksimal 6MB'); return Upload.LIST_IGNORE; }
-                return true;
-              }}
-              action={`${API_URL}/upload`}
-              headers={{ Authorization: `Bearer ${localStorage.getItem('token')}` }}
-              maxCount={1}
+                  return true;
+                }}
+                action={`${API_URL}/upload`}
+                headers={{ Authorization: `Bearer ${localStorage.getItem('token')}` }}
+                maxCount={1}
+                accept="image/*"
+                onChange={({ file, fileList: fl }) => {
+                  if (file.status === 'done') {
+                    setFileList(fl.filter((f) => f.status === 'done'));
+                  }
+                }}
+              >
+                <Button icon={<UploadOutlined />}>Pilih dari Gallery</Button>
+              </Upload>
+            </Space>
+            {fileList.length > 0 && (
+              <div style={{ marginTop: 8, position: 'relative', display: 'inline-block' }}>
+                <Image src={fileList[0].url} width={120} style={{ borderRadius: 8 }} />
+                <Button
+                  type="text"
+                  danger
+                  size="small"
+                  style={{ position: 'absolute', top: -8, right: -8 }}
+                  icon={<CloseCircleOutlined />}
+                  onClick={() => setFileList([])}
+                />
+              </div>
+            )}
+            <input
+              ref={cameraInputRef}
+              type="file"
               accept="image/*"
-            >
-              {fileList.length >= 1 ? null : (
-                <div><UploadOutlined /><div style={{ marginTop: 8 }}>Upload</div></div>
-              )}
-            </Upload>
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={handleCameraCapture}
+            />
           </Form.Item>
         </Form>
       </Modal>
