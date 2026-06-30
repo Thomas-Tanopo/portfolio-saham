@@ -13,19 +13,20 @@ const storage = multer.diskStorage({
     cb(null, UPLOAD_DIR);
   },
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
+    const ext = path.extname(file.originalname) || '.jpg';
     const name = `transaksi_${Date.now()}_${Math.round(Math.random() * 1e9)}${ext}`;
     cb(null, name);
   },
 });
 
 const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-  const allowed = ['.jpg', '.jpeg', '.png'];
+  const allowedExts = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'];
+  const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
   const ext = path.extname(file.originalname).toLowerCase();
-  if (allowed.includes(ext)) {
+  if (allowedExts.includes(ext) || allowedMimes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Hanya file JPG/PNG yang diizinkan'));
+    cb(new Error('Hanya file gambar (JPG/PNG/WEBP) yang diizinkan'));
   }
 };
 

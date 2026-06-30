@@ -153,7 +153,9 @@ export default function Transaksi() {
       if (cameraFileRef.current) {
         const fd = new FormData();
         fd.append('file', cameraFileRef.current);
-        const upRes = await api.post('/upload', fd);
+        const upRes = await api.post('/upload', fd, {
+          headers: { 'Content-Type': undefined },
+        });
         buktiPendukung = upRes.data.filename;
         cameraFileRef.current = null;
       } else if (fileList.length > 0 && fileList[0].response?.filename) {
@@ -351,7 +353,7 @@ export default function Transaksi() {
                   input.onchange = async (e: any) => {
                     const file = e.target?.files?.[0];
                     if (!file) return;
-                    if (file.type !== 'image/jpeg' && file.type !== 'image/png') { message.error('Hanya file JPG/PNG'); return; }
+                    if (!file.type.startsWith('image/')) { message.error('Hanya file gambar yang diizinkan'); return; }
                     if (file.size >= 6 * 1024 * 1024) { message.error('Maksimal 6MB'); return; }
                     cameraFileRef.current = file;
                     const reader = new FileReader();
