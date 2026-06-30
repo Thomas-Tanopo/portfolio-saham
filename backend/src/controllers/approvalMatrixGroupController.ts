@@ -2,11 +2,16 @@ import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
 
 export async function getApprovalMatrixGroups(req: Request, res: Response) {
+  const showDeleted = req.query.showDeleted === 'true';
+  const groupWhere: any = {};
+  if (!showDeleted) groupWhere.deletedAt = null;
+  const itemWhere: any = {};
+  if (!showDeleted) itemWhere.deletedAt = null;
   const data = await prisma.approvalMatrixGroup.findMany({
-    where: { deletedAt: null },
+    where: groupWhere,
     include: {
       items: {
-        where: { deletedAt: null },
+        where: itemWhere,
         include: { user: { select: { id: true, nama: true, username: true } } },
         orderBy: [{ releaseLevel: 'asc' }, { userId: 'asc' }],
       },

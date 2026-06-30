@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Table, Tag, Button, Row, Col, Statistic, message, InputNumber, Spin, Modal, Form, Select, DatePicker, Space, Popconfirm, Tooltip, Upload, Image, Input } from 'antd';
+import { Card, Table, Tag, Button, Row, Col, Statistic, message, InputNumber, Spin, Modal, Form, Select, DatePicker, Space, Popconfirm, Tooltip, Upload, Image, Input, Checkbox } from 'antd';
 import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, SaveOutlined, UploadOutlined, PaperClipOutlined, UndoOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile } from 'antd/es/upload';
@@ -14,7 +14,6 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const rp = (v: number) => Intl.NumberFormat('id-ID').format(v);
 
-interface AuditUser { id: number; nama: string }
 interface PortfolioItem {
   key: number; sahamId?: number; kode: string; nama: string;
   total_lembar: number; harga_rata: number; total_modal: number;
@@ -24,7 +23,7 @@ interface TransaksiItem {
   key: number; id: number; userId: number; sahamId: number;
   tanggal: string; kode: string; tipe: 'beli' | 'jual'; jumlah: number; harga: number; total: number;
   status: string; buktiPendukung?: string; remarks?: string; approvalCatatan?: string;
-  createdBy?: AuditUser; updatedBy?: AuditUser;
+  deletedAt?: string;
 }
 
 export default function Transaksi() {
@@ -32,6 +31,7 @@ export default function Transaksi() {
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [transaksi, setTransaksi] = useState<TransaksiItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDeleted, setShowDeleted] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TransaksiItem | null>(null);
@@ -56,10 +56,12 @@ export default function Transaksi() {
   const portfolioSahamIds = new Set([...myHoldings.entries()].filter(([_, v]) => v > 0).map(([k]) => k));
   const availableLembar = selectedSahamId ? (myHoldings.get(selectedSahamId) || 0) : 0;
 
-  const fetchAll = () => {
+  const fetchAll = (showDel?: boolean) => {
     setLoading(true);
+    const params = {} as any;
+    if (showDel) params.showDeleted = 'true';
     Promise.all([
-      api.get('/transaksi'),
+      api.get('/transaksi', { params }),
       api.get('/saham'),
     ]).then(([resTrans, resSaham]) => {
       const sahamList = resSaham.data;
@@ -76,8 +78,7 @@ export default function Transaksi() {
           tanggal: new Date(tr.tanggal).toISOString().split('T')[0],
           kode: tr.saham?.kode || '-', tipe: tr.tipe, jumlah: tr.jumlah, harga: tr.harga,
           total: tr.jumlah * tr.harga,
-          status: tr.status, buktiPendukung: tr.buktiPendukung, remarks: tr.remarks, approvalCatatan: lastApproval?.catatan,
-          createdBy: tr.createdBy, updatedBy: tr.updatedBy,
+          status: tr.status, buktiPendukung: tr.buktiPendukung, remarks: tr.remarks, approvalCatatan: lastApproval?.catatan, deletedAt: tr.deletedAt,
         };
       }));
 
@@ -166,7 +167,7 @@ export default function Transaksi() {
         await api.post('/transaksi', payload);
         message.success('Transaksi berhasil ditambahkan');
       }
-      setModalOpen(false); fetchAll();
+      setModalOpen(false); fetchAll(showDeleted);
     } catch (e: any) {
       const msg = e?.response?.data?.message || e?.message || 'Gagal menyimpan transaksi';
       message.error(msg);
@@ -174,7 +175,7 @@ export default function Transaksi() {
   };
 
   const handleDelete = async (id: number) => {
-    try { await api.delete(`/transaksi/${id}`); message.success('Transaksi dihapus'); fetchAll(); }
+    try { await api.delete(`/transaksi/${id}`); message.success('Transaksi dihapus'); fetchAll(showDeleted); }
     catch { message.error('Gagal menghapus transaksi'); }
   };
 
@@ -242,19 +243,19 @@ export default function Transaksi() {
         <Image src={`${API_URL.replace('/api', '')}/uploads/${r.buktiPendukung}`} alt="bukti" width={40} preview={{ mask: <PaperClipOutlined /> }} />
       ) : '-'
     },
-    { title: 'Dibuat', key: 'created', width: 110, render: (_: unknown, r: TransaksiItem) => r.createdBy ? <Tooltip title={`ID: ${r.createdBy.id}`}><Tag>{r.createdBy.nama}</Tag></Tooltip> : '-' },
-    { title: 'Diubah', key: 'updated', width: 110, render: (_: unknown, r: TransaksiItem) => r.updatedBy ? <Tag color="blue">{r.updatedBy.nama}</Tag> : '-' },
     { title: 'Aksi', key: 'aksi', width: 200, render: (_: unknown, r: TransaksiItem) => (
       <Space>
         <Button type="link" icon={<PaperClipOutlined />} onClick={() => { setActivityId(r.id); setActivityOpen(true); }}>Activity</Button>
-        {r.status === 'request_info' && perm.create_with_approval ? (
-          <Button type="primary" icon={<UndoOutlined />} onClick={() => openEdit(r)}>Resubmit</Button>
-        ) : perm.edit ? (
-          <Button type="link" icon={<EditOutlined />} onClick={() => openEdit(r)} disabled={r.status !== 'pending' && r.status !== 'approved'} />
-        ) : null}
-        {perm.delete && <Popconfirm title="Hapus transaksi?" onConfirm={() => handleDelete(r.id)}>
-          <Button type="link" danger icon={<DeleteOutlined />} />
-        </Popconfirm>}
+        {!r.deletedAt ? <>
+          {r.status === 'request_info' && perm.create_with_approval ? (
+            <Button type="primary" icon={<UndoOutlined />} onClick={() => openEdit(r)}>Resubmit</Button>
+          ) : perm.edit ? (
+            <Button type="link" icon={<EditOutlined />} onClick={() => openEdit(r)} disabled={r.status !== 'pending' && r.status !== 'approved'} />
+          ) : null}
+          {perm.delete && <Popconfirm title="Hapus transaksi?" onConfirm={() => handleDelete(r.id)}>
+            <Button type="link" danger icon={<DeleteOutlined />} />
+          </Popconfirm>}
+        </> : <Tag color="red">Deleted</Tag>}
       </Space>
     )},
   ];
@@ -277,7 +278,12 @@ export default function Transaksi() {
         <Card title="Riwayat Transaksi"
           extra={(perm.create_with_approval || perm.create_without_approval) && <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Tambah Transaksi</Button>}
         >
-          <Table columns={transaksiColumns} dataSource={transaksi} pagination={false} scroll={{ x: 'max-content' }} />
+          <Space style={{ marginBottom: 16 }}>
+            <Checkbox checked={showDeleted} onChange={(e) => { setShowDeleted(e.target.checked); fetchAll(e.target.checked); }}>
+              Tampilkan data yang sudah dihapus
+            </Checkbox>
+          </Space>
+          <Table columns={transaksiColumns} dataSource={transaksi} pagination={false} scroll={{ x: 'max-content' }} rowClassName={(r) => r.deletedAt ? 'deleted-row' : ''} />
         </Card>
       </Spin>
 

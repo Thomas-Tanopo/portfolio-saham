@@ -21,7 +21,9 @@ async function validateUserPermission(userId: number, releaseLevel: number): Pro
 
 export async function getApprovalMatrix(req: Request, res: Response) {
   const { groupId } = req.query;
-  const where: any = { deletedAt: null };
+  const showDeleted = req.query.showDeleted === 'true';
+  const where: any = {};
+  if (!showDeleted) where.deletedAt = null;
   if (groupId) where.groupId = Number(groupId);
   const data = await prisma.approvalMatrix.findMany({
     where,

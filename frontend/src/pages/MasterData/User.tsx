@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Table, Button, Tag, Spin, Modal, Form, Input, Select, Space, message, Popconfirm, Tooltip } from 'antd';
+import { Card, Table, Button, Tag, Spin, Modal, Form, Input, Select, Space, message, Popconfirm, Tooltip, Checkbox } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import api from '../../services/api';
@@ -9,28 +9,49 @@ interface AuditUser { id: number; nama: string }
 interface RoleItem { id: number; nama: string; deskripsi?: string }
 interface UserItem {
   key: number; id: number; username: string; nama: string; roleId: number; role: RoleItem; status: string;
-  createdBy?: AuditUser; updatedBy?: AuditUser; deletedAt?: string;
+  createdAt?: string; updatedAt?: string;
+  updatedBy?: AuditUser;
+  deletedBy?: AuditUser; deletedAt?: string;
 }
+
+const fDate = (d?: string) => {
+  if (!d) return '-';
+  const dt = new Date(d);
+  const dd = String(dt.getDate()).padStart(2, '0');
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const yy = String(dt.getFullYear()).slice(-2);
+  const hh = String(dt.getHours()).padStart(2, '0');
+  const min = String(dt.getMinutes()).padStart(2, '0');
+  return `${dd}/${mm}/${yy} ${hh}:${min}`;
+};
 
 export default function User() {
   const [data, setData] = useState<UserItem[]>([]);
   const [roles, setRoles] = useState<RoleItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDeleted, setShowDeleted] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<UserItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
   const perm = usePermission('User');
 
-  const fetch = () => {
+  const fetch = (showDel?: boolean) => {
     setLoading(true);
-    Promise.all([api.get('/users'), api.get('/role')]).then(([resU, resR]) => {
+    const params = {} as any;
+    if (showDel) params.showDeleted = 'true';
+    Promise.all([api.get('/users', { params }), api.get('/role')]).then(([resU, resR]) => {
       setRoles(resR.data);
       setData(resU.data.map((u: any) => ({ key: u.id, id: u.id, ...u })));
     }).finally(() => setLoading(false));
   };
 
   useEffect(() => { fetch(); }, []);
+
+  const toggleShowDeleted = (checked: boolean) => {
+    setShowDeleted(checked);
+    fetch(checked);
+  };
 
   const openCreate = () => { setEditing(null); form.resetFields(); setModalOpen(true); };
   const openEdit = (record: UserItem) => {
@@ -45,7 +66,7 @@ export default function User() {
     try {
       if (editing) { await api.put(`/users/${editing.id}`, values); message.success('User diupdate'); }
       else { await api.post('/users', values); message.success('User dibuat'); }
-      setModalOpen(false); fetch();
+      setModalOpen(false); fetch(showDeleted);
     } catch (e: any) {
       const msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Gagal menyimpan user';
       message.error(msg);
@@ -53,7 +74,7 @@ export default function User() {
   };
 
   const handleDelete = async (id: number) => {
-    try { await api.delete(`/users/${id}`); message.success('User dihapus'); fetch(); }
+    try { await api.delete(`/users/${id}`); message.success('User dihapus'); fetch(showDeleted); }
     catch { message.error('Gagal menghapus user'); }
   };
 
@@ -63,12 +84,24 @@ export default function User() {
     { title: 'Role', key: 'role', render: (_: unknown, r: UserItem) => r.role?.nama ?? '-' },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (s: string) => <Tag color={s === 'aktif' ? 'green' : 'red'}>{s.toUpperCase()}</Tag> },
     {
-      title: 'Dibuat', key: 'created', width: 120,
-      render: (_: unknown, r: UserItem) => r.createdBy ? <Tooltip title={`ID: ${r.createdBy.id}`}><Tag>{r.createdBy.nama}</Tag></Tooltip> : '-',
+      title: 'Tgl Dibuat', key: 'createdAt', width: 150,
+      render: (_: unknown, r: UserItem) => fDate(r.createdAt),
     },
     {
-      title: 'Diubah', key: 'updated', width: 120,
+      title: 'Diubah Oleh', key: 'updatedBy', width: 120,
       render: (_: unknown, r: UserItem) => r.updatedBy ? <Tag color="blue">{r.updatedBy.nama}</Tag> : '-',
+    },
+    {
+      title: 'Tgl Diubah', key: 'updatedAt', width: 150,
+      render: (_: unknown, r: UserItem) => fDate(r.updatedAt),
+    },
+    {
+      title: 'Dihapus Oleh', key: 'deletedBy', width: 120,
+      render: (_: unknown, r: UserItem) => r.deletedBy ? <Tag color="red">{r.deletedBy.nama}</Tag> : '-',
+    },
+    {
+      title: 'Tgl Dihapus', key: 'deletedAt', width: 150,
+      render: (_: unknown, r: UserItem) => fDate(r.deletedAt),
     },
     {
       title: 'Aksi', key: 'aksi',
@@ -87,7 +120,14 @@ export default function User() {
   return (
     <>
       <Card title="Master Data User" extra={perm.create && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tambah User</Button>}>
-        <Spin spinning={loading}><Table columns={columns} dataSource={data} pagination={false} scroll={{ x: 'max-content' }} /></Spin>
+        <Space style={{ marginBottom: 16 }}>
+          <Checkbox checked={showDeleted} onChange={(e) => toggleShowDeleted(e.target.checked)}>
+            Tampilkan data yang sudah dihapus
+          </Checkbox>
+        </Space>
+        <Spin spinning={loading}>
+          <Table columns={columns} dataSource={data} pagination={false} scroll={{ x: 'max-content' }} rowClassName={(r) => r.deletedAt ? 'deleted-row' : ''} />
+        </Spin>
       </Card>
       <Modal title={editing ? 'Edit User' : 'Tambah User'} open={modalOpen} onOk={handleOk} onCancel={() => setModalOpen(false)} confirmLoading={submitting}>
         <Form form={form} layout="vertical">

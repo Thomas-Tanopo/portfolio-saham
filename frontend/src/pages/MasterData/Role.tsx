@@ -12,8 +12,21 @@ interface AuditUser { id: number; nama: string }
 interface Permission { modul: string; view: boolean; create: boolean; edit: boolean; delete: boolean; create_with_approval?: boolean; create_without_approval?: boolean }
 interface RoleItem {
   key: number; id: number; nama: string; deskripsi?: string; permissions: Permission[];
-  createdBy?: AuditUser; updatedBy?: AuditUser; deletedAt?: string;
+  createdAt?: string; updatedAt?: string;
+  createdBy?: AuditUser; updatedBy?: AuditUser;
+  deletedBy?: AuditUser; deletedAt?: string;
 }
+
+const fDate = (d?: string) => {
+  if (!d) return '-';
+  const dt = new Date(d);
+  const dd = String(dt.getDate()).padStart(2, '0');
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const yy = String(dt.getFullYear()).slice(-2);
+  const hh = String(dt.getHours()).padStart(2, '0');
+  const min = String(dt.getMinutes()).padStart(2, '0');
+  return `${dd}/${mm}/${yy} ${hh}:${min}`;
+};
 
 type PermState = {
   view: boolean;
@@ -30,6 +43,7 @@ const defaultPermState = (): PermState => ({ view: false, create: false, edit: f
 export default function Role() {
   const [data, setData] = useState<RoleItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDeleted, setShowDeleted] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<RoleItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -47,14 +61,21 @@ export default function Role() {
     }
   };
 
-  const fetch = () => {
+  const fetch = (showDel?: boolean) => {
     setLoading(true);
-    api.get('/role').then((res) => {
+    const params = {} as any;
+    if (showDel) params.showDeleted = 'true';
+    api.get('/role', { params }).then((res) => {
       setData(res.data.map((r: any) => ({ key: r.id, id: r.id, ...r })));
     }).finally(() => setLoading(false));
   };
 
   useEffect(() => { fetch(); }, []);
+
+  const toggleShowDeleted = (checked: boolean) => {
+    setShowDeleted(checked);
+    fetch(checked);
+  };
 
   const buildInitialPerms = (record: RoleItem | null): Record<string, PermState> => {
     const result: Record<string, PermState> = {};
@@ -123,12 +144,12 @@ export default function Role() {
       const payload = { nama: values.nama, deskripsi: values.deskripsi, permissions };
       if (editing) { await api.put(`/role/${editing.id}`, payload); message.success('Role diupdate'); }
       else { await api.post('/role', payload); message.success('Role dibuat'); }
-      setModalOpen(false); fetch(); refreshAuth();
+      setModalOpen(false); fetch(showDeleted); refreshAuth();
     } catch { message.error('Gagal menyimpan role'); } finally { setSubmitting(false); }
   };
 
   const handleDelete = async (id: number) => {
-    try { await api.delete(`/role/${id}`); message.success('Role dihapus'); fetch(); }
+    try { await api.delete(`/role/${id}`); message.success('Role dihapus'); fetch(showDeleted); }
     catch (err: any) { message.error(err.response?.data?.message || 'Gagal menghapus role'); }
   };
 
@@ -155,12 +176,28 @@ export default function Role() {
       ),
     },
     {
-      title: 'Dibuat', key: 'created', width: 120,
+      title: 'Dibuat Oleh', key: 'createdBy', width: 120,
       render: (_: unknown, r: RoleItem) => r.createdBy ? <Tooltip title={`ID: ${r.createdBy.id}`}><Tag>{r.createdBy.nama}</Tag></Tooltip> : '-',
     },
     {
-      title: 'Diubah', key: 'updated', width: 120,
+      title: 'Tgl Dibuat', key: 'createdAt', width: 150,
+      render: (_: unknown, r: RoleItem) => fDate(r.createdAt),
+    },
+    {
+      title: 'Diubah Oleh', key: 'updatedBy', width: 120,
       render: (_: unknown, r: RoleItem) => r.updatedBy ? <Tag color="blue">{r.updatedBy.nama}</Tag> : '-',
+    },
+    {
+      title: 'Tgl Diubah', key: 'updatedAt', width: 150,
+      render: (_: unknown, r: RoleItem) => fDate(r.updatedAt),
+    },
+    {
+      title: 'Dihapus Oleh', key: 'deletedBy', width: 120,
+      render: (_: unknown, r: RoleItem) => r.deletedBy ? <Tag color="red">{r.deletedBy.nama}</Tag> : '-',
+    },
+    {
+      title: 'Tgl Dihapus', key: 'deletedAt', width: 150,
+      render: (_: unknown, r: RoleItem) => fDate(r.deletedAt),
     },
     {
       title: 'Aksi', key: 'aksi',
@@ -179,7 +216,12 @@ export default function Role() {
   return (
     <>
       <Card title="Master Data Role" extra={perm.create && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tambah Role</Button>}>
-        <Spin spinning={loading}><Table columns={columns} dataSource={data} pagination={false} scroll={{ x: 'max-content' }} /></Spin>
+        <Space style={{ marginBottom: 16 }}>
+          <Checkbox checked={showDeleted} onChange={(e) => toggleShowDeleted(e.target.checked)}>
+            Tampilkan data yang sudah dihapus
+          </Checkbox>
+        </Space>
+        <Spin spinning={loading}><Table columns={columns} dataSource={data} pagination={false} scroll={{ x: 'max-content' }} rowClassName={(r) => r.deletedAt ? 'deleted-row' : ''} /></Spin>
       </Card>
       <Modal title={editing ? 'Edit Role' : 'Tambah Role'} open={modalOpen} onOk={handleOk} onCancel={() => setModalOpen(false)} confirmLoading={submitting} width={640}>
         <Form form={form} layout="vertical">

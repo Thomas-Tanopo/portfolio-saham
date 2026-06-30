@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Table, Button, Tag, Spin, Modal, Form, Select, InputNumber, Input, Space, message, Popconfirm, Empty } from 'antd';
+import { Card, Table, Button, Tag, Spin, Modal, Form, Select, InputNumber, Input, Space, message, Popconfirm, Empty, Checkbox, Tooltip } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import api from '../../services/api';
@@ -8,7 +8,20 @@ import { usePermission } from '../../hooks/usePermission';
 interface MatrixItem {
   key: number; id: number; groupId: number; releaseLevel: number; userId: number; tipe: string; status: string;
   user: { id: number; nama: string; username: string };
+  createdAt?: string; updatedAt?: string;
+  deletedAt?: string;
 }
+
+const fDate = (d?: string) => {
+  if (!d) return '-';
+  const dt = new Date(d);
+  const dd = String(dt.getDate()).padStart(2, '0');
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const yy = String(dt.getFullYear()).slice(-2);
+  const hh = String(dt.getHours()).padStart(2, '0');
+  const min = String(dt.getMinutes()).padStart(2, '0');
+  return `${dd}/${mm}/${yy} ${hh}:${min}`;
+};
 
 interface MatrixGroup {
   id: number; code: string; nama: string; status: string;
@@ -24,6 +37,7 @@ export default function ApprovalMatrix() {
   const [groups, setGroups] = useState<MatrixGroup[]>([]);
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   // Modal group
   const [groupModal, setGroupModal] = useState(false);
@@ -48,10 +62,12 @@ export default function ApprovalMatrix() {
     return perms.some((p) => p.modul === 'Approval' && p.view);
   });
 
-  const fetch = () => {
+  const fetch = (showDel?: boolean) => {
     setLoading(true);
+    const params = {} as any;
+    if (showDel) params.showDeleted = 'true';
     Promise.all([
-      api.get('/approval-matrix-group'),
+      api.get('/approval-matrix-group', { params }),
       api.get('/users'),
     ]).then(([resGrp, resUsers]) => {
       setGroups(resGrp.data);
@@ -82,7 +98,7 @@ export default function ApprovalMatrix() {
     try {
       if (editingGroup) { await api.put(`/approval-matrix-group/${editingGroup.id}`, values); message.success('Diupdate'); }
       else { await api.post('/approval-matrix-group', values); message.success('Ditambahkan'); }
-      setGroupModal(false); fetch();
+      setGroupModal(false); fetch(showDeleted);
     } catch { message.error('Gagal simpan'); } finally { setSubmitting(false); }
   };
 
@@ -90,7 +106,7 @@ export default function ApprovalMatrix() {
     try {
       await api.delete(`/approval-matrix-group/${id}`);
       message.success('Grup dan semua item berhasil dihapus');
-      fetch();
+      fetch(showDeleted);
     } catch { message.error('Gagal menghapus grup'); }
   };
 
@@ -118,14 +134,14 @@ export default function ApprovalMatrix() {
       const payload = { groupId: currentGroup!.id, releaseLevel: values.releaseLevel, userId: values.userId, tipe: values.tipe || 'or' };
       if (editingItem) { await api.put(`/approval-matrix/${editingItem.id}`, payload); message.success('Diupdate'); }
       else { await api.post('/approval-matrix', payload); message.success('Ditambahkan'); }
-      setItemModal(false); fetch();
+      setItemModal(false); fetch(showDeleted);
     } catch { message.error('Gagal simpan'); } finally { setSubmitting(false); }
   };
 
   const handleDeleteItem = async (id: number) => {
     await api.delete(`/approval-matrix/${id}`);
     message.success('Dihapus');
-    fetch();
+    fetch(showDeleted);
   };
 
   const itemColumns: ColumnsType<MatrixItem> = [
@@ -133,14 +149,23 @@ export default function ApprovalMatrix() {
     { title: 'User', dataIndex: ['user', 'nama'], key: 'user', width: 200 },
     { title: 'Username', dataIndex: ['user', 'username'], key: 'username', width: 150 },
     { title: 'Type', dataIndex: 'tipe', key: 'tipe', width: 100, render: (t: string) => <Tag color={t === 'and' ? 'blue' : 'green'}>{t ? t.toUpperCase() : 'OR'}</Tag> },
+    { title: 'Tgl Dibuat', key: 'createdAt', width: 150, render: (_: unknown, r: MatrixItem) => fDate(r.createdAt) },
+    { title: 'Tgl Diubah', key: 'updatedAt', width: 150, render: (_: unknown, r: MatrixItem) => fDate(r.updatedAt) },
     { title: 'Aksi', key: 'aksi', width: 100, render: (_: unknown, r: MatrixItem) => (
-      <Space>{perm.edit && <Button type="link" icon={<EditOutlined />} onClick={() => openEditItem(r)} />}{perm.delete && <Popconfirm title="Hapus?" onConfirm={() => handleDeleteItem(r.id)}><Button type="link" danger icon={<DeleteOutlined />} /></Popconfirm>}</Space>
+      <Space>
+        {!r.deletedAt ? <>{perm.edit && <Button type="link" icon={<EditOutlined />} onClick={() => openEditItem(r)} />}{perm.delete && <Popconfirm title="Hapus?" onConfirm={() => handleDeleteItem(r.id)}><Button type="link" danger icon={<DeleteOutlined />} /></Popconfirm>}</> : <Tag color="red">Deleted</Tag>}
+      </Space>
     )},
   ];
 
   return (
     <Spin spinning={loading}>
       <Card title="Approval Matrix" extra={perm.create && <Button type="primary" icon={<PlusOutlined />} onClick={openCreateGroup}>Tambah Grup</Button>}>
+        <Space style={{ marginBottom: 16 }}>
+          <Checkbox checked={showDeleted} onChange={(e) => { setShowDeleted(e.target.checked); fetch(e.target.checked); }}>
+            Tampilkan data yang sudah dihapus
+          </Checkbox>
+        </Space>
         {groups.length === 0 ? <Empty description="Belum ada grup. Klik Tambah Grup untuk mulai." /> : groups.map(g => (
           <Card
             key={g.id}
@@ -165,7 +190,7 @@ export default function ApprovalMatrix() {
               </Space>
             }
           >
-            <Table columns={itemColumns} dataSource={g.items.map(r => ({ key: r.id, ...r }))} pagination={false} scroll={{ x: 'max-content' }} size="small" />
+            <Table columns={itemColumns} dataSource={g.items.map(r => ({ key: r.id, ...r }))} pagination={false} scroll={{ x: 'max-content' }} size="small" rowClassName={(r) => r.deletedAt ? 'deleted-row' : ''} />
           </Card>
         ))}
       </Card>

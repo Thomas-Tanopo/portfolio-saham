@@ -16,10 +16,15 @@ async function getCurrentHoldings(userId: number, sahamId: number, excludeTxId?:
 const auditInclude = {
   createdBy: { select: { id: true, nama: true } },
   updatedBy: { select: { id: true, nama: true } },
+  deletedBy: { select: { id: true, nama: true } },
 };
 
 export async function getTransaksis(req: Request, res: Response) {
+  const showDeleted = req.query.showDeleted === 'true';
+  const where: any = {};
+  if (!showDeleted) where.deletedAt = null;
   const data = await prisma.transaksi.findMany({
+    where,
     include: { saham: true, user: true, approval: true, ...auditInclude },
     orderBy: { id: 'desc' },
   });
@@ -184,6 +189,12 @@ export async function getActivityLog(req: Request, res: Response) {
       status: true,
       createdById: true,
       createdBy: { select: { id: true, nama: true } },
+      updatedById: true,
+      updatedBy: { select: { id: true, nama: true } },
+      updatedAt: true,
+      deletedById: true,
+      deletedBy: { select: { id: true, nama: true } },
+      deletedAt: true,
       approval: { orderBy: [{ releaseLevel: 'asc' }, { createdAt: 'asc' }] },
     },
   });
@@ -197,6 +208,24 @@ export async function getActivityLog(req: Request, res: Response) {
     user: transaksi.createdBy,
     description: 'Transaksi dibuat',
   });
+
+  if (transaksi.updatedById) {
+    events.push({
+      type: 'updated',
+      timestamp: transaksi.updatedAt || transaksi.tanggal,
+      user: transaksi.updatedBy,
+      description: 'Transaksi diedit',
+    });
+  }
+
+  if (transaksi.deletedById) {
+    events.push({
+      type: 'deleted',
+      timestamp: transaksi.deletedAt || transaksi.tanggal,
+      user: transaksi.deletedBy,
+      description: 'Transaksi dihapus',
+    });
+  }
 
   for (const approval of transaksi.approval) {
     const matrixUsers = await prisma.approvalMatrix.findMany({
@@ -255,6 +284,7 @@ export async function getActivityLog(req: Request, res: Response) {
   if (transaksi.status === 'rejected') {
     events.push({
       type: 'rejected',
+      timestamp: transaksi.updatedAt || transaksi.tanggal,
       description: 'Transaksi ditolak',
     });
   }
@@ -262,16 +292,22 @@ export async function getActivityLog(req: Request, res: Response) {
   if (transaksi.status === 'request_info') {
     events.push({
       type: 'request_info',
+      timestamp: transaksi.updatedAt || transaksi.tanggal,
       description: 'Menunggu perbaikan dari requester',
     });
   }
+
+  events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
   res.json(events);
 }
 
 export async function deleteTransaksi(req: Request, res: Response) {
+  const authUser = (req as any).user;
   const { id } = req.params;
-  await prisma.transaksiApproval.deleteMany({ where: { transaksiId: Number(id) } });
-  await prisma.transaksi.delete({ where: { id: Number(id) } });
+  await prisma.transaksi.update({
+    where: { id: Number(id) },
+    data: { deletedAt: new Date(), deletedById: authUser.id },
+  });
   res.json({ message: 'Transaksi deleted' });
 }

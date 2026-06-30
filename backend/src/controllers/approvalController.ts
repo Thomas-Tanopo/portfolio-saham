@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 
 export async function getPendingApprovals(req: Request, res: Response) {
   const authUser = (req as any).user;
+  const showHistory = req.query.showHistory === 'true';
 
   const userLevels = await prisma.approvalMatrix.findMany({
     where: { userId: authUser.id, status: 'aktif', deletedAt: null },
@@ -11,13 +12,15 @@ export async function getPendingApprovals(req: Request, res: Response) {
   const levelIds = userLevels.map((l) => l.releaseLevel);
   if (levelIds.length === 0) return res.json([]);
 
+  const where: any = { releaseLevel: { in: levelIds } };
+  if (!showHistory) {
+    where.status = 'pending';
+    where.transaksi = { status: 'pending' };
+    where.NOT = { processedByUserIds: { has: authUser.id } };
+  }
+
   const approvals = await prisma.transaksiApproval.findMany({
-    where: {
-      status: 'pending',
-      releaseLevel: { in: levelIds },
-      transaksi: { status: 'pending' },
-      NOT: { processedByUserIds: { has: authUser.id } },
-    },
+    where,
     include: {
       transaksi: {
         include: {
