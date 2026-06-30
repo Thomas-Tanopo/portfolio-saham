@@ -244,16 +244,16 @@ export default function Transaksi() {
       ) : '-'
     },
     { title: 'Aksi', key: 'aksi', width: 200, render: (_: unknown, r: TransaksiItem) => (
-      <Space>
-        <Button type="link" icon={<PaperClipOutlined />} onClick={() => { setActivityId(r.id); setActivityOpen(true); }}>Activity</Button>
+      <Space wrap size="small">
+        <Button type="link" size="small" icon={<PaperClipOutlined />} onClick={() => { setActivityId(r.id); setActivityOpen(true); }}>Activity</Button>
         {!r.deletedAt ? <>
           {r.status === 'request_info' && perm.create_with_approval ? (
-            <Button type="primary" icon={<UndoOutlined />} onClick={() => openEdit(r)}>Resubmit</Button>
+            <Button type="primary" size="small" icon={<UndoOutlined />} onClick={() => openEdit(r)}>Resubmit</Button>
           ) : perm.edit ? (
-            <Button type="link" icon={<EditOutlined />} onClick={() => openEdit(r)} disabled={r.status !== 'pending' && r.status !== 'approved'} />
+            <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} disabled={r.status !== 'pending' && r.status !== 'approved'} />
           ) : null}
           {perm.delete && <Popconfirm title="Hapus transaksi?" onConfirm={() => handleDelete(r.id)}>
-            <Button type="link" danger icon={<DeleteOutlined />} />
+            <Button type="link" size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>}
         </> : <Tag color="red">Deleted</Tag>}
       </Space>

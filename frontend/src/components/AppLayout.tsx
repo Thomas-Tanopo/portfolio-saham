@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Button, Space, Tooltip, Typography } from 'antd';
+import { Layout, Menu, Button, Space, Tooltip, Typography, Drawer, Grid } from 'antd';
 import {
   DatabaseOutlined,
   SwapOutlined,
@@ -23,6 +23,7 @@ import '../App.css';
 
 const { Sider, Content, Header } = Layout;
 const { Text } = Typography;
+const { useBreakpoint } = Grid;
 
 const allMenuItems = [
   { key: '/', icon: <DashboardOutlined />, label: 'Dashboard', modul: null },
@@ -79,7 +80,9 @@ export default function AppLayout() {
   const menuItems = useMemo(() => filterMenu(allMenuItems, user), [user]);
 
   const [openKeys, setOpenKeys] = useState<string[]>([]);
-  const [collapsed, setCollapsed] = useState(false);
+  const [siderOpen, setSiderOpen] = useState(false);
+  const screens = useBreakpoint();
+  const isMobile = !screens.lg;
 
   useEffect(() => {
     const path = location.pathname;
@@ -98,30 +101,50 @@ export default function AppLayout() {
     navigate('/login');
   };
 
+  const sidebarContent = (
+    <>
+      <div className="logo" style={{ cursor: 'pointer', padding: '16px', textAlign: 'center' }}>
+        <span>📈</span>
+        <span>Analysis Portfolio</span>
+      </div>
+      <Menu
+        theme="dark"
+        mode="inline"
+        selectedKeys={[selectedKey]}
+        openKeys={openKeys}
+        onOpenChange={setOpenKeys}
+        items={menuItems}
+        onClick={({ key }) => {
+          navigate(key);
+          if (isMobile) setSiderOpen(false);
+        }}
+      />
+    </>
+  );
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        breakpoint="lg"
-        collapsedWidth={0}
-        collapsed={collapsed}
-        onCollapse={setCollapsed}
-        trigger={null}
-        style={{ position: 'sticky', top: 0, height: '100vh' }}
-      >
-        <div className="logo" style={{ cursor: 'pointer' }} onClick={() => setCollapsed(!collapsed)}>
-          <span>📈</span>
-          <span>Analysis Portfolio</span>
-        </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          selectedKeys={[selectedKey]}
-          openKeys={openKeys}
-          onOpenChange={setOpenKeys}
-          items={menuItems}
-          onClick={({ key }) => navigate(key)}
-        />
-      </Sider>
+      {isMobile ? (
+        <Drawer
+          title={null}
+          placement="left"
+          open={siderOpen}
+          onClose={() => setSiderOpen(false)}
+          styles={{ body: { padding: 0 } }}
+          width={260}
+        >
+          <div style={{ background: '#001529', height: '100%' }}>
+            {sidebarContent}
+          </div>
+        </Drawer>
+      ) : (
+        <Sider
+          trigger={null}
+          style={{ position: 'sticky', top: 0, height: '100vh' }}
+        >
+          {sidebarContent}
+        </Sider>
+      )}
       <Layout>
         <Header
           style={{
@@ -136,13 +159,13 @@ export default function AppLayout() {
           }}
         >
           <Space>
-            <Button type="text" icon={<MenuOutlined />} onClick={() => setCollapsed(!collapsed)} className="menu-trigger" style={{ fontSize: 18 }} />
+            <Button type="text" icon={<MenuOutlined />} onClick={() => setSiderOpen(true)} className="menu-trigger" style={{ fontSize: 18 }} />
             <span style={{ fontSize: 18, fontWeight: 600 }}>
 Analysis Portfolio
             </span>
           </Space>
-          <Space>
-            <Text style={{ color: mode === 'dark' ? '#fff' : '#000' }}>
+          <Space wrap="wrap">
+            <Text style={{ color: mode === 'dark' ? '#fff' : '#000', fontSize: isMobile ? 13 : 14 }}>
               {user?.nama} ({user?.role})
             </Text>
             <Tooltip title={mode === 'light' ? 'Dark Mode' : 'Light Mode'}>
@@ -163,7 +186,7 @@ Analysis Portfolio
             </Tooltip>
           </Space>
         </Header>
-        <Content style={{ margin: 16 }}>
+        <Content style={{ margin: isMobile ? 12 : 16 }}>
           <Outlet />
         </Content>
       </Layout>

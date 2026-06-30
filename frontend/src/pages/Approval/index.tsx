@@ -86,10 +86,10 @@ export default function Approval() {
     {
       title: 'Aksi', key: 'aksi', width: 220,
       render: (_: unknown, r: ApprovalItem) => r.status === 'pending' ? (
-        <Space>
-          <Button type="primary" icon={<CheckCircleOutlined />} onClick={() => openAction(r.transaksi.id, 'approved')}>Setuju</Button>
-          <Button danger icon={<CloseCircleOutlined />} onClick={() => openAction(r.transaksi.id, 'rejected')}>Tolak</Button>
-          <Button icon={<InfoCircleOutlined />} onClick={() => openAction(r.transaksi.id, 'request_info')}>Request Info</Button>
+        <Space wrap size="small">
+          <Button size="small" type="primary" icon={<CheckCircleOutlined />} onClick={() => openAction(r.transaksi.id, 'approved')}>Setuju</Button>
+          <Button size="small" danger icon={<CloseCircleOutlined />} onClick={() => openAction(r.transaksi.id, 'rejected')}>Tolak</Button>
+          <Button size="small" icon={<InfoCircleOutlined />} onClick={() => openAction(r.transaksi.id, 'request_info')}>Req Info</Button>
         </Space>
       ) : (
         <Tag color={statusColors[r.status] || 'default'}>{statusLabels[r.status] || r.status?.toUpperCase()}</Tag>
