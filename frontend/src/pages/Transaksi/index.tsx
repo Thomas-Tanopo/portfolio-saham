@@ -205,7 +205,7 @@ export default function Transaksi() {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = await api.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await api.post('/upload', formData);
       setFileList([{ uid: '-1', name: res.data.filename, status: 'done', url: `${API_URL.replace('/api', '')}/uploads/${res.data.filename}`, response: { filename: res.data.filename } }]);
       setUploadedFilename(res.data.filename);
       message.success('Foto berhasil diupload');
