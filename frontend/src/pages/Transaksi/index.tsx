@@ -177,7 +177,9 @@ export default function Transaksi() {
       setModalOpen(false); fetchAll(showDeleted);
     } catch (e: any) {
       const msg = e?.response?.data?.message || e?.message || 'Gagal menyimpan transaksi';
-      message.error(msg);
+      const detail = e?.response?.data?.error || '';
+      console.error('Save error:', e?.response?.status, e?.response?.data);
+      message.error(`${msg}${detail ? ': ' + detail : ''}`);
     } finally { setSubmitting(false); }
   };
 
