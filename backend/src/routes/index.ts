@@ -18,7 +18,10 @@ import {
 } from '../controllers/roleController';
 import { getHarga, getHargaBatch } from '../controllers/hargaController';
 import { uploadFile } from '../controllers/uploadController';
-import upload from '../lib/upload';
+import upload, { createUpload } from '../lib/upload';
+
+const uploadUser = createUpload('users');
+const uploadTransaksi = createUpload('transaksi');
 import {
   getApprovalMatrix, createApprovalMatrix, updateApprovalMatrix, deleteApprovalMatrix,
 } from '../controllers/approvalMatrixController';
@@ -77,7 +80,9 @@ router.get('/harga/:kode', getHarga);
 router.post('/harga/batch', getHargaBatch);
 
 // Upload
-router.post('/upload', upload.single('file'), uploadFile);
+router.post('/upload', uploadTransaksi.single('file'), uploadFile);
+router.post('/upload/user', uploadUser.single('file'), uploadFile);
+router.post('/upload/transaksi', uploadTransaksi.single('file'), uploadFile);
 
 // Approval Matrix Group
 router.get('/approval-matrix-group', getApprovalMatrixGroups);

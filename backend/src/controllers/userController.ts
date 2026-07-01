@@ -24,7 +24,7 @@ export async function getUser(req: Request, res: Response) {
 
 export async function createUser(req: Request, res: Response) {
   const authUser = (req as any).user;
-  const { username, nama, password, roleId, status } = req.body;
+  const { username, nama, password, roleId, status, foto } = req.body;
 
   const existing = await prisma.user.findUnique({ where: { username } });
   if (existing && !existing.deletedAt) {
@@ -34,7 +34,7 @@ export async function createUser(req: Request, res: Response) {
     const hashed = await bcrypt.hash(password, 10);
     const data = await prisma.user.update({
       where: { id: existing.id },
-      data: { nama, password: hashed, roleId, status: status || 'aktif', deletedAt: null, deletedById: null },
+      data: { nama, password: hashed, roleId, status: status || 'aktif', foto, deletedAt: null, deletedById: null },
       include: { role: true, ...auditInclude },
     });
     return res.status(201).json(data);
@@ -51,7 +51,7 @@ export async function createUser(req: Request, res: Response) {
 
   const hashed = await bcrypt.hash(password, 10);
   const data = await prisma.user.create({
-    data: { username, nama, password: hashed, roleId, status: status || 'aktif' },
+      data: { username, nama, password: hashed, roleId, status: status || 'aktif', foto },
     include: { role: true, ...auditInclude },
   });
   res.status(201).json(data);
@@ -60,8 +60,8 @@ export async function createUser(req: Request, res: Response) {
 export async function updateUser(req: Request, res: Response) {
   const authUser = (req as any).user;
   const { id } = req.params;
-  const { username, nama, password, roleId, status } = req.body;
-  const updateData: any = { username, nama, roleId, status, updatedById: authUser.id };
+  const { username, nama, password, roleId, status, foto } = req.body;
+  const updateData: any = { username, nama, roleId, status, foto, updatedById: authUser.id };
   if (password) {
     updateData.password = await bcrypt.hash(password, 10);
   }

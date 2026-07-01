@@ -153,7 +153,7 @@ export default function Transaksi() {
       if (cameraFileRef.current) {
         const fd = new FormData();
         fd.append('file', cameraFileRef.current);
-        const upRes = await api.post('/upload', fd, {
+        const upRes = await api.post('/upload/transaksi', fd, {
           headers: { 'Content-Type': undefined },
         });
         buktiPendukung = upRes.data.filename;
@@ -376,7 +376,7 @@ const isLt6M = file.size / 1024 / 1024 < 6;
 if (!isLt6M) { message.error('Ukuran file maksimal 6MB'); return Upload.LIST_IGNORE; }
                   return true;
                 }}
-                action={`${API_URL}/upload`}
+                action={`${API_URL}/upload/transaksi`}
                 headers={{ Authorization: `Bearer ${localStorage.getItem('token')}` }}
                 maxCount={1}
                 accept="image/*"
