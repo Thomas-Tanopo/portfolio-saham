@@ -105,7 +105,7 @@ export default function AppLayout() {
     <>
       <div className="logo" style={{ cursor: 'pointer', padding: '16px', textAlign: 'center' }}>
         <span>📈</span>
-        <span>Analysis Portfolio Tracker</span>
+        <span>Analysis Portfolio</span>
       </div>
       <Menu
         theme="dark"
@@ -161,7 +161,7 @@ export default function AppLayout() {
           <Space>
             <Button type="text" icon={<MenuOutlined />} onClick={() => setSiderOpen(true)} className="menu-trigger" style={{ fontSize: 18 }} />
             <span style={{ fontSize: 18, fontWeight: 600 }}>
-Analysis Portfolio Tracker
+Analysis Portfolio
             </span>
           </Space>
           <Space wrap="wrap">
