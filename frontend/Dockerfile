@@ -1,5 +1,6 @@
 FROM node:22-alpine AS build
-ENV VITE_API_URL=https://portfolio-tracking-backend-zqqntv-12c09f-212-85-26-253.sslip.io/api
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
