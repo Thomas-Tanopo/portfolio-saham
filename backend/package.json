@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Backend API Portfolio Saham",
   "main": "dist/index.js",
+  "prisma": {
+    "seed": "ts-node src/seed.ts"
+  },
   "scripts": {
     "dev": "ts-node src/index.ts",
     "build": "tsc",
