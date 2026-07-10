@@ -179,10 +179,11 @@ export default function Transaksi() {
       }
       setModalOpen(false); fetchAll(showDeleted);
     } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.message || 'Gagal menyimpan transaksi';
-      const detail = e?.response?.data?.error || '';
-      console.error('Save error:', e?.response?.status, e?.response?.data);
-      message.error(`${msg}${detail ? ': ' + detail : ''}`);
+      const status = e?.response?.status;
+      let msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Gagal menyimpan transaksi';
+      if (status === 413) msg = 'Ukuran file terlalu besar. Maksimal 6MB.';
+      console.error('Save error:', status, e?.response?.data);
+      message.error(msg);
     } finally { setSubmitting(false); }
   };
 

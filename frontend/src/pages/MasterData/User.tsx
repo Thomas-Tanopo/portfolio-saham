@@ -91,7 +91,9 @@ export default function User() {
       else { await api.post('/users', payload); message.success('User dibuat'); }
       setModalOpen(false); fetch(showDeleted);
     } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Gagal menyimpan user';
+      const status = e?.response?.status;
+      let msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Gagal menyimpan user';
+      if (status === 413) msg = 'Ukuran file terlalu besar. Maksimal 6MB.';
       message.error(msg);
     } finally { setSubmitting(false); }
   };
