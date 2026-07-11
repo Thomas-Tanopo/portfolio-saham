@@ -1,7 +1,7 @@
 {
-  "name": "Analysis Portfolio",
+  "name": "Analysis Portfolio Tracker",
   "short_name": "Portfolio",
-  "description": "Portfolio saham tracker",
+  "description": "Analysis Portfolio Tracker",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

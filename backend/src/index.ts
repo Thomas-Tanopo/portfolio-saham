@@ -21,7 +21,7 @@ app.use('/uploads', express.static(UPLOAD_DIR));
 app.use('/api', routes);
 
 app.get('/', (_req, res) => {
-  res.json({ message: 'Portfolio Saham API' });
+  res.json({ message: 'Analysis Portfolio Tracker API' });
 });
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
