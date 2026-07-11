@@ -7,8 +7,6 @@ services:
       POSTGRES_USER: postgres
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:5432:5432"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -29,8 +27,6 @@ services:
       UPLOAD_DIR: /app/uploads
     volumes:
       - ./backend/uploads:/app/uploads
-    expose:
-      - "3000"
     restart: unless-stopped
 
   frontend:
@@ -39,7 +35,7 @@ services:
       args:
         VITE_API_URL: /api
     ports:
-      - "80:80"
+      - "3001:80"
     depends_on:
       - backend
     restart: unless-stopped
