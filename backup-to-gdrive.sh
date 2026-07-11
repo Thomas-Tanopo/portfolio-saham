@@ -29,7 +29,7 @@ trap "rm -rf $TEMP_DIR" EXIT
 
 # --- Dump database ---
 echo "[$(date)] Dumping database $DB_NAME from container $DB_CONTAINER ..." | tee -a "$LOG_FILE"
-docker exec "$DB_CONTAINER" pg_dump -Fc -U "$DB_USER" "$DB_NAME" -f "$TEMP_DIR/database.dump" 2>>"$LOG_FILE"
+docker exec "$DB_CONTAINER" pg_dump -Fc -U "$DB_USER" "$DB_NAME" > "$TEMP_DIR/database.dump" 2>>"$LOG_FILE"
 
 # --- Copy uploads ---
 if [ -d "$UPLOADS_DIR" ]; then
