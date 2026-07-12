@@ -183,7 +183,7 @@ export default function Transaksi() {
     } catch (e: any) {
       const status = e?.response?.status;
       let msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Gagal menyimpan transaksi';
-      if (status === 413) msg = 'Ukuran file terlalu besar. Maksimal 10MB.';
+      if (status === 413) msg = 'Ukuran file terlalu besar. Maksimal 30MB.';
       console.error('Save error:', status, e?.response?.data);
       message.error(msg);
     } finally { setSubmitting(false); }
@@ -360,7 +360,7 @@ export default function Transaksi() {
                   document.body.removeChild(input);
                   if (!file) return;
                   if (!file.type.startsWith('image/')) { message.error('Hanya file gambar yang diizinkan'); return; }
-                  if (file.size >= 10 * 1024 * 1024) { message.error('Maksimal 10MB'); return; }
+                  if (file.size >= 30 * 1024 * 1024) { message.error('Maksimal 30MB'); return; }
                   const reader = new FileReader();
                   reader.onload = (ev) => {
                     setCameraPreviewUrl(ev.target?.result as string);
@@ -375,8 +375,8 @@ export default function Transaksi() {
                 beforeUpload={(file) => {
                   const isJpgPng = file.type === 'image/jpeg' || file.type === 'image/png';
                   if (!isJpgPng) { message.error('Hanya file JPG/PNG yang diizinkan'); return Upload.LIST_IGNORE; }
-const isLt10M = file.size / 1024 / 1024 < 10;
-if (!isLt10M) { message.error('Ukuran file maksimal 10MB'); return Upload.LIST_IGNORE; }
+const isLt30M = file.size / 1024 / 1024 < 30;
+if (!isLt30M) { message.error('Ukuran file maksimal 30MB'); return Upload.LIST_IGNORE; }
                   return true;
                 }}
                 action={`${API_URL}/upload/transaksi`}

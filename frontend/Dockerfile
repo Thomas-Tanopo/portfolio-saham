@@ -13,7 +13,7 @@ COPY <<'EOF' /etc/nginx/conf.d/default.conf
 server {
     listen 80;
     server_name _;
-    client_max_body_size 10M;
+    client_max_body_size 30M;
     root /usr/share/nginx/html;
     index index.html;
     location ^~ /api/ {
