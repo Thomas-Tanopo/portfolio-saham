@@ -93,7 +93,7 @@ export default function User() {
     } catch (e: any) {
       const status = e?.response?.status;
       let msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Gagal menyimpan user';
-      if (status === 413) msg = 'Ukuran file terlalu besar. Maksimal 6MB.';
+      if (status === 413) msg = 'Ukuran file terlalu besar. Maksimal 10MB.';
       message.error(msg);
     } finally { setSubmitting(false); }
   };
@@ -170,7 +170,7 @@ export default function User() {
                 beforeUpload={(file) => {
                   const isImage = file.type.startsWith('image/');
                   if (!isImage) { message.error('Hanya file gambar yang diizinkan'); return Upload.LIST_IGNORE; }
-                  if (file.size / 1024 / 1024 >= 6) { message.error('Ukuran file maksimal 6MB'); return Upload.LIST_IGNORE; }
+                  if (file.size / 1024 / 1024 >= 10) { message.error('Ukuran file maksimal 10MB'); return Upload.LIST_IGNORE; }
                   return true;
                 }}
                 action={`${API_URL}/upload/user`}

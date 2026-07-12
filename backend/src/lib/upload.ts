@@ -22,7 +22,7 @@ const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterC
   }
 };
 
-const limits = { fileSize: 6 * 1024 * 1024 };
+const limits = { fileSize: 10 * 1024 * 1024 };
 
 export function createUpload(subfolder?: string) {
   const storage = multer.diskStorage({
