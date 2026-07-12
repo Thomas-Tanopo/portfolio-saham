@@ -27,7 +27,7 @@ app.get('/', (_req, res) => {
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (err instanceof MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      res.status(413).json({ error: 'Ukuran file maksimal 6MB' });
+      res.status(413).json({ error: 'Ukuran file maksimal 10MB' });
       return;
     }
     res.status(400).json({ error: err.message });
