@@ -39,6 +39,7 @@ export default function Transaksi() {
   const [form] = Form.useForm();
   const [sahams, setSahams] = useState<{ id: number; kode: string; nama: string }[]>([]);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
+  const [cameraPreviewUrl, setCameraPreviewUrl] = useState<string | null>(null);
   const perm = usePermission('Transaksi');
   const [selectedSahamId, setSelectedSahamId] = useState<number | undefined>();
   const [selectedTipe, setSelectedTipe] = useState<string>('');
@@ -127,7 +128,7 @@ export default function Transaksi() {
         return;
       }
     }
-    setEditing(null); form.resetFields(); setFileList([]); cameraFileRef.current = null; setSelectedSahamId(undefined); setSelectedTipe(''); setModalOpen(true);
+    setEditing(null); form.resetFields(); setFileList([]); setCameraPreviewUrl(null); cameraFileRef.current = null; setSelectedSahamId(undefined); setSelectedTipe(''); setModalOpen(true);
   };
   const openEdit = (record: TransaksiItem) => {
     setEditing(record);
@@ -135,6 +136,7 @@ export default function Transaksi() {
     setSelectedTipe(record.tipe);
     form.setFieldsValue({ sahamId: record.sahamId, tipe: record.tipe, jumlah: record.jumlah / 100, totalInvestasi: record.jumlah * record.harga, tanggal: dayjs(record.tanggal) });
     cameraFileRef.current = null;
+    setCameraPreviewUrl(null);
     if (record.buktiPendukung) {
       setFileList([{ uid: '-1', name: record.buktiPendukung, status: 'done', url: `${API_URL.replace('/api', '')}/uploads/${record.buktiPendukung}`, response: { filename: record.buktiPendukung } }]);
     } else {
@@ -345,29 +347,29 @@ export default function Transaksi() {
           <Form.Item name="remarks" label="Remarks"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item label="Bukti Pendukung">
             <Space>
-              <div>
-                <Button icon={<CameraOutlined />} onClick={() => {
-                  const input = document.createElement('input');
-                  input.type = 'file';
-                  input.accept = 'image/*';
-                  input.capture = 'environment' as any;
-                  input.onchange = async (e: any) => {
-                    const file = e.target?.files?.[0];
-                    if (!file) return;
-                    if (!file.type.startsWith('image/')) { message.error('Hanya file gambar yang diizinkan'); return; }
-                    if (file.size >= 6 * 1024 * 1024) { message.error('Maksimal 6MB'); return; }
-                    cameraFileRef.current = file;
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                      setFileList([{ uid: '-1', name: file.name, status: 'done', url: ev.target?.result as string }]);
-                    };
-                    reader.readAsDataURL(file);
-                    message.success('Foto siap disimpan');
+              <Button icon={<CameraOutlined />} onClick={() => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.capture = 'environment' as any;
+                input.style.position = 'fixed';
+                input.style.top = '-1000px';
+                document.body.appendChild(input);
+                input.onchange = (e: any) => {
+                  const file = e.target?.files?.[0];
+                  document.body.removeChild(input);
+                  if (!file) return;
+                  if (!file.type.startsWith('image/')) { message.error('Hanya file gambar yang diizinkan'); return; }
+                  if (file.size >= 6 * 1024 * 1024) { message.error('Maksimal 6MB'); return; }
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    setCameraPreviewUrl(ev.target?.result as string);
                   };
-                  input.click();
-                }}>Ambil Foto</Button>
-                {cameraFileRef.current && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{cameraFileRef.current.name}</div>}
-              </div>
+                  reader.readAsDataURL(file);
+                  cameraFileRef.current = file;
+                };
+                input.click();
+              }}>Ambil Foto</Button>
               <Upload
                 showUploadList={false}
                 beforeUpload={(file) => {
@@ -383,6 +385,7 @@ if (!isLt6M) { message.error('Ukuran file maksimal 6MB'); return Upload.LIST_IGN
                 accept="image/*"
                 onChange={({ file, fileList: fl }) => {
                   if (file.status === 'done') {
+                    setCameraPreviewUrl(null);
                     setFileList(fl.filter((f) => f.status === 'done'));
                   }
                 }}
@@ -390,16 +393,16 @@ if (!isLt6M) { message.error('Ukuran file maksimal 6MB'); return Upload.LIST_IGN
                 <Button icon={<UploadOutlined />}>Pilih dari Gallery</Button>
               </Upload>
             </Space>
-            {fileList.length > 0 && (
+            {(cameraPreviewUrl || fileList.length > 0) && (
               <div style={{ marginTop: 8, position: 'relative', display: 'inline-block' }}>
-                <Image src={fileList[0].url} width={120} style={{ borderRadius: 8 }} />
+                <Image src={cameraPreviewUrl || fileList[0]?.url} width={120} style={{ borderRadius: 8 }} />
                 <Button
                   type="text"
                   danger
                   size="small"
                   style={{ position: 'absolute', top: -8, right: -8 }}
                   icon={<CloseCircleOutlined />}
-                  onClick={() => { setFileList([]); cameraFileRef.current = null; }}
+                  onClick={() => { setFileList([]); setCameraPreviewUrl(null); cameraFileRef.current = null; }}
                 />
               </div>
             )}
