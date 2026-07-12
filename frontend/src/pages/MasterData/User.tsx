@@ -8,6 +8,28 @@ import { usePermission } from '../../hooks/usePermission';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
+function compressImage(file: File, maxWidth = 1920, quality = 0.8): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      if (w > maxWidth) { h = h * maxWidth / w; w = maxWidth; }
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob((blob) => {
+        if (!blob) { resolve(file); return; }
+        resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = () => resolve(file);
+    img.src = url;
+  });
+}
+
 interface AuditUser { id: number; nama: string }
 interface RoleItem { id: number; nama: string; deskripsi?: string }
 interface UserItem {
@@ -167,11 +189,10 @@ export default function User() {
             <Space>
               <Upload
                 showUploadList={false}
-                beforeUpload={(file) => {
+                beforeUpload={async (file) => {
                   const isImage = file.type.startsWith('image/');
                   if (!isImage) { message.error('Hanya file gambar yang diizinkan'); return Upload.LIST_IGNORE; }
-                  
-                  return true;
+                  return compressImage(file as File);
                 }}
                 action={`${API_URL}/upload/user`}
                 headers={{ Authorization: `Bearer ${localStorage.getItem('token')}` }}

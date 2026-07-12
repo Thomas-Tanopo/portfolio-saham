@@ -14,6 +14,28 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const rp = (v: number) => Intl.NumberFormat('id-ID').format(v);
 
+function compressImage(file: File, maxWidth = 1920, quality = 0.8): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      if (w > maxWidth) { h = h * maxWidth / w; w = maxWidth; }
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob((blob) => {
+        if (!blob) { resolve(file); return; }
+        resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = () => resolve(file);
+    img.src = url;
+  });
+}
+
 interface PortfolioItem {
   key: number; sahamId?: number; kode: string; nama: string;
   total_lembar: number; harga_rata: number; total_modal: number;
@@ -355,26 +377,27 @@ export default function Transaksi() {
                 input.style.position = 'fixed';
                 input.style.top = '-1000px';
                 document.body.appendChild(input);
-                input.onchange = (e: any) => {
+                input.onchange = async (e: any) => {
                   const file = e.target?.files?.[0];
                   document.body.removeChild(input);
                   if (!file) return;
                   if (!file.type.startsWith('image/')) { message.error('Hanya file gambar yang diizinkan'); return; }
+                  const compressed = await compressImage(file);
                   const reader = new FileReader();
                   reader.onload = (ev) => {
                     setCameraPreviewUrl(ev.target?.result as string);
                   };
-                  reader.readAsDataURL(file);
-                  cameraFileRef.current = file;
+                  reader.readAsDataURL(compressed);
+                  cameraFileRef.current = compressed;
                 };
                 input.click();
               }}>Ambil Foto</Button>
               <Upload
                 showUploadList={false}
-                beforeUpload={(file) => {
+                beforeUpload={async (file) => {
                   const isJpgPng = file.type === 'image/jpeg' || file.type === 'image/png';
                   if (!isJpgPng) { message.error('Hanya file JPG/PNG yang diizinkan'); return Upload.LIST_IGNORE; }
-                  return true;
+                  return compressImage(file as File);
                 }}
                 action={`${API_URL}/upload/transaksi`}
                 headers={{ Authorization: `Bearer ${localStorage.getItem('token')}` }}
